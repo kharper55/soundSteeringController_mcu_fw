@@ -4,11 +4,11 @@ esp_err_t app_gpio_init(void) {
     // GP OUTPUTS
     gpio_reset_pin(HEARTBEAT_LED_PIN);
     gpio_set_direction(HEARTBEAT_LED_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(HEARTBEAT_LED_PIN, 1);
+    gpio_set_level(HEARTBEAT_LED_PIN, 0);
 
     gpio_reset_pin(LOAD_SWITCH_EN_PIN);
     gpio_set_direction(LOAD_SWITCH_EN_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(LOAD_SWITCH_EN_PIN, 1);
+    gpio_set_level(LOAD_SWITCH_EN_PIN, 0); // Changed rst/init value to 0 on 04/28
 
     // Init and disable array by default
     gpio_reset_pin(PWM_BUFF_EN_PIN);
@@ -22,7 +22,7 @@ esp_err_t app_gpio_init(void) {
     gpio_reset_pin(AUX_SW_PIN);
     gpio_set_direction(AUX_SW_PIN, GPIO_MODE_INPUT);
     
-    // Init extra io's as input pulldowns for now
+    // Init extra io's as input pulldowns for now. These pins are not used in the design but available on the 8pos RA JST connector
     gpio_reset_pin(EXTRA_IO0_PIN);
     gpio_set_direction(EXTRA_IO0_PIN, GPIO_MODE_INPUT);
     gpio_pulldown_en(EXTRA_IO0_PIN);

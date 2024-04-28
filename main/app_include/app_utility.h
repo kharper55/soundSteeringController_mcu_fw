@@ -14,6 +14,8 @@ extern "C" {
 #include "sdkconfig.h"
 #include <string.h>
 
+#include "rom/crc.h"            // For crc32 calculations
+
 // Pin Defines
 
 // Settings
@@ -25,7 +27,7 @@ extern "C" {
 // Static functions
 
 // User functions
-
+uint32_t app_compute_crc32(char * str, int data_len);
 
 #ifdef __cplusplus
 }

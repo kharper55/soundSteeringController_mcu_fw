@@ -1,8 +1,18 @@
 #include "app_include/app_adc.h"
 
+const char * adc_temp_names[5] = {
+    "UNKOWN",
+    "COLD",
+    "ROOM",
+    "WARM",
+    "HOT"
+};
+
+/*---------------------------------------------------------------
+    ADC Calibration Curve Fitting Unit Init
+---------------------------------------------------------------*/
 esp_err_t adc_calibration_init(adc_unit_t unit, adc_channel_t channel, 
-                          adc_atten_t atten, adc_cali_handle_t *out_handle)
-{
+                          adc_atten_t atten, adc_cali_handle_t *out_handle) {
     adc_cali_handle_t handle = NULL;
     esp_err_t ret = ESP_FAIL;
     bool calibrated = false;
@@ -33,6 +43,9 @@ esp_err_t adc_calibration_init(adc_unit_t unit, adc_channel_t channel,
     return ret;
 }
 
+/*---------------------------------------------------------------
+    ADC Calibration Deinit
+---------------------------------------------------------------*/
 void adc_calibration_deinit(adc_cali_handle_t handle) {
     ESP_LOGI(ADC_TAG, "deregister %s calibration scheme", "Line Fitting");
     ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
@@ -93,4 +106,40 @@ float adc_filter(int value, adc_filter_t * filterObject) {
     denominator = (filterObject->bufferFullFlag) ? filterObject->buff_len : filterObject->count;
 
     return (filterObject->sum / (float)denominator);
+}
+
+/*---------------------------------------------------------------
+    ADC Unit Continuous Read Init
+---------------------------------------------------------------*/
+/*static*/ void adc_continuous_init(adc_continuous_handle_t * adc_handle, adc_unit_t * units, 
+                                adc_channel_t * channels, uint8_t num_channels) {
+
+    /* Needs to be ported in/figured out. Not sure continuous mode driver is necessary in this application */
+}
+
+/*---------------------------------------------------------------
+    ADC Unit Continuous Read Init
+---------------------------------------------------------------*/
+void get_drive_temp(adc_temp_t * temperature, int vmeas) {
+    adc_temp_t * tempStateHandle = temperature;
+    static adc_temp_t tempState = TEMP_UNKNOWN;
+    float tempReading = GET_NTC_TEMP(vmeas);
+
+    if (tempReading > 70) {         // Temp is between 70 & 100% of the max
+        tempState = TEMP_HOT;
+    }
+    else if (tempReading > 50) {    // Temp is between 50 & 70% of the max
+        tempState = TEMP_WARM;
+    }
+    else if (tempReading > 30) {    // Temp is between 30 & 50% of the max
+        tempState = TEMP_ROOM;
+    }   
+    else if (tempReading > 0) {    // Temp is between 0 & 30% of the max
+        tempState = TEMP_COLD;
+    }
+    else {
+        tempState = TEMP_UNKNOWN;    
+    }
+
+    *tempStateHandle = tempState;
 }

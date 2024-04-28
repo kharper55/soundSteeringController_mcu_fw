@@ -11,7 +11,7 @@
 // Work on all comms. Especially from remote to controller...
 // We need some encoding of the data... data to be sent is from 2 encoders (angles) and 2 pots (volume, other)
 
-#include "app_include/app_utility.h"
+#include "app_include/app_utility.h"    // CRC32 implementation + other headers
 #include "app_include/app_uart2.h"
 #include "app_include/app_adc.h"
 #include "app_include/app_gpio.h"
@@ -23,74 +23,91 @@
 //NOTE: NEED TO PORT IN CHANGES TO ADC TASKS
 static int vdrive_raw = 0;
 static int vdrive_cali = 0;
-static int vdrive_avg = 0;
+static int vdrive_filt = 0;
 
-static int ntc_raw = 0;
-static int ntc_cali = 0;
-static int ntc_avg = 0;
+static int vntc_raw = 0;
+static int vntc_cali = 0;
+static int vntc_filt = 0;
 
 uint8_t spi_tx_data[4] = {0xBA, 0xAD, 0xF0, 0x0D};
 uint8_t spi_rx_data[4] = {0x00, 0x00, 0x00, 0x00};
 
 uint32_t count = 0;
-bool heartbeat = false; 
+bool heartbeat = false; // Level status for heartbeat output. Flopped at set interval in app_main
 
-adc_filter_t vdrive_filt = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
-adc_filter_t ntc_filt = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
 // Try automatically getting length with sizeof(arr)/sizeof(firstEl)(this requires predeclaring an array and passing to the struct which I am not sure is possible)
+adc_filter_t vdrive_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
+adc_filter_t vntc_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
 
-/* Task to read all three pertinent ADC channels using oneshot modes */
-// NOTE! Only ADC1 driver is used on this board. The remote is optionally configurable to use both. 
-static void adc_task(void) {
+adc_temp_t ntc_temp = TEMP_UNKNOWN;
+extern const char * adc_temp_names[5];
 
-    const static char *TAG = "ADC";
-    //const bool VERBOSE = false;
+/*---------------------------------------------------------------
+    ADC Oneshot-Mode Driver Continuous Read Task
+    
+    Generic oneshot adc task for various MCU adc channels
+---------------------------------------------------------------*/
+static void adc_task(void * pvParameters) {
 
-    //-------------ADC1 Init---------------//
-    adc_oneshot_unit_handle_t adc1_handle;
-    adc_cali_handle_t adc1_cali_chan0_handle = NULL;
-    adc_cali_handle_t adc1_cali_chan1_handle = NULL;
+    const bool VERBOSE_FLAG = true;
+    esp_err_t err = ESP_OK;
 
-    ESP_ERROR_CHECK(adc_oneshot_init(&adc1_handle, ADC_UNIT_1, APP_ADC1_CHAN0));
-    ESP_ERROR_CHECK(adc_calibration_init(ADC_UNIT_1, APP_ADC1_CHAN0, APP_ADC_ATTEN, &adc1_cali_chan0_handle));
-    adc_oneshot_init(&adc1_handle, ADC_UNIT_1, APP_ADC1_CHAN1); // This will throw an error on 2nd pass of trying to config the adc1 driver 
-    ESP_ERROR_CHECK(adc_calibration_init(ADC_UNIT_1, APP_ADC1_CHAN1, APP_ADC_ATTEN, &adc1_cali_chan1_handle));
+    // Unique parameters per ADC channel
+    adcOneshotParams_t * params = (adcOneshotParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+    adc_oneshot_unit_handle_t * adc_handle = params->handle;
+    adc_cali_handle_t * cali_handle = params->cali_handle;
+    adc_unit_t unit = params->unit;
+    adc_channel_t chan = params->channel;
+    adc_atten_t atten = params->atten;
+    int delay_ms = params->delay_ms;
+    adc_filter_t * filt = params->filt;
+    int * vraw = params->vraw;
+    int * vcal = params->vcal;
+    int * vfilt = params->vfilt;
+    
+    adc_oneshot_init(adc_handle, unit, chan); // VPOTC adc16
+    adc_calibration_init(unit, chan, atten, cali_handle);
 
     while (1) {
+        
+        err = adc_oneshot_read(*adc_handle, chan, vraw);
+        if (err != ESP_OK) {
+            if(VERBOSE_FLAG) {
+                // Handle timeout or other errors
+                if (err == ESP_ERR_TIMEOUT) {
+                    // Timeout occurred, handle it
+                    ESP_LOGW(TAG, "ADC read timeout occurred");
+                } else {
+                    // Handle other errors
+                    ESP_LOGE(TAG, "ADC read failed with error code: %d", err);
+                }
+            }
+        } 
+        else {
+            err = adc_cali_raw_to_voltage(*cali_handle, *vraw, vcal);
+            if (err == ESP_OK) {
 
-        // VSW Monitor (confirmed working)
-        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, APP_ADC1_CHAN0, &vdrive_raw));
-        //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw: %d", ADC_UNIT_1 + 1, APP_ADC1_CHAN0, vdrive_raw);
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_chan0_handle, vdrive_raw, &vdrive_cali));
-        //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali: %d mV", ADC_UNIT_1 + 1, APP_ADC1_CHAN0, vdrive_cali);
-        // Call ADC filter function
-        vdrive_avg = adc_filter(vdrive_cali, &vdrive_filt);
-        ESP_LOGI(TAG, "ADC%d Channel[%d] Filt: %d mV", ADC_UNIT_1 + 1, APP_ADC1_CHAN0, vdrive_avg);
+                *vfilt = adc_filter(*vcal, filt);
+            
+                if (VERBOSE_FLAG) {
+                    ESP_LOGI(TAG, "ADC%d_%d raw  : %d counts", unit + 1, chan, *vraw);
+                    ESP_LOGI(TAG, "ADC%d_%d cal  : %dmV", unit + 1, chan, *vcal);
+                    ESP_LOGI(TAG, "ADC%d_%d filt : %dmV", unit + 1, chan, *vfilt);
+                }
 
-        // NTC Monitor (confirmed working)
-        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, APP_ADC1_CHAN1, &ntc_raw));
-        //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw: %d", ADC_UNIT_1 + 1, APP_ADC1_CHAN1, ntc_raw);
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_chan1_handle, ntc_raw, &ntc_cali));
-        //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali: %d mV", ADC_UNIT_1 + 1, APP_ADC1_CHAN1, ntc_cali);
-        // Call ADC filter
-        ntc_avg = adc_filter(ntc_cali, &ntc_filt);
-        ESP_LOGI(TAG, "ADC%d Channel[%d] Filt: %d mV", ADC_UNIT_1 + 1, APP_ADC1_CHAN1, ntc_avg);
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));    // This delay defines the filter effective time constant
     }
-
-    //Tear Down
-    ESP_ERROR_CHECK(adc_oneshot_del_unit(adc1_handle));
-    //if (do_calibration1_chan0) {
-    adc_calibration_deinit(adc1_cali_chan0_handle);
-    //}
+    
+    adc_oneshot_del_unit(*adc_handle);
+    adc_calibration_deinit(*cali_handle);
 }
 
 /*---------------------------------------------------------------
     UART2 TX FreeRTOS task
 ---------------------------------------------------------------*/
-
-/* UART TX Task */
 static void tx_task(void *arg) {
     const static char *TAG = "U2T";
     esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -103,6 +120,61 @@ static void tx_task(void *arg) {
 /*---------------------------------------------------------------
     UART2 RX FreeRTOS task
 ---------------------------------------------------------------*/
+
+// FOR REFERENCE, THE UART2 TX_TASK ON THE REMOTE END IS:
+/*
+static void txTask(void *arg) {
+
+    static const char * TX_TASK_TAG = "TX_TASK";
+    esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
+
+    char * txData = (char *) malloc(TX_BUF_SIZE + 1);
+    char * crcBuff = (char *) malloc(sizeof(uint32_t) + 1);
+
+    const int16_t POS_OFFSET = 30;
+    const char DELIM = '/';
+
+    // both encoders should spit out counts between +=30
+    // both pots -> might want to filter the adc counts, and then scale via bit shift (12 bit to 8 bit?)
+    static int16_t temp_azimuthPos = MIN_ENCODER_COUNTS; // -30
+    static int16_t temp_elevPos = MIN_ENCODER_COUNTS;    // -30
+    //static uint8_t temp_potc_counts = PCT_MIN; // 0
+    //static uint8_t temp_potd_counts = PCT_MIN; // 0
+    static int16_t temp_potc_counts = 0; // 0
+    static int16_t temp_potd_counts = 0; // 0
+    int16_t potc_scaled = 0;
+    int16_t potd_scaled = 0;
+
+    // use some switch case and simple assignment to classify which code should be sent based on running system state
+    // also append the crc, use fixed width hex in order to omit delimiters
+
+    while (1) {
+        //if (xQueueReceive(sendData(TX_TASK_TAG, "Hello world") == pdTrue)) {}
+        //(int16_t)SCALE_VPOT_INVERT(vpotd_filt)
+        potc_scaled = SCALE_VPOT_INVERT((vpotc_filt));
+        potd_scaled = SCALE_VPOT_INVERT((vpotd_filt));
+
+        if ((posA != temp_azimuthPos) || (posB != temp_elevPos) || 
+            (potc_scaled != temp_potc_counts) || (potd_scaled != temp_potd_counts)) {
+
+            temp_azimuthPos = posA;
+            temp_elevPos = posB;
+            temp_potc_counts = potc_scaled;
+            temp_potd_counts = potd_scaled;        
+
+            sprintf(txData,"%02X%02X%02X%02X", (uint8_t)(temp_azimuthPos + POS_OFFSET), (uint8_t)(temp_elevPos + POS_OFFSET), temp_potc_counts, temp_potd_counts);
+            const int len = strlen(txData);
+            uint32_t crc = app_compute_crc32(txData, len);
+            const int txBytes = uart_write_bytes(UART_NUM_2, txData, len);
+            ESP_LOGI(TX_TASK_TAG, "Wrote %d bytes: '%s/%lu'", txBytes, txData, crc);   
+        }
+
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+
+    free(txData);
+}
+*/
 static void rx_task(void *arg) {
     const static char *TAG = "U2R";
     esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -125,6 +197,9 @@ static void i2c_task(void *arg) {
     uint8_t dataX[2];
     uint8_t dataY[2];
     esp_err_t ret = ESP_OK;
+
+    // factor this to 1. take params
+    //                2. act on the received value from uart2/bluetooth
 
     ESP_ERROR_CHECK(app_i2c_master_init());
     ESP_LOGI(TAG, "I2C initialized successfully.");
@@ -183,6 +258,10 @@ static void i2c_task(void *arg) {
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
+    
+    // Execution should not get here
+    ESP_ERROR_CHECK(i2c_driver_delete(I2C_MASTER_NUM));
+    ESP_LOGI(TAG, "I2C de-initialized successfully");
 }
 
 /*---------------------------------------------------------------
@@ -219,9 +298,47 @@ void app_main(void) {
     app_gpio_init();
     app_i2s_init();
 
+    adc_oneshot_unit_handle_t adc1_handle = NULL;
+    adc_cali_handle_t adc1_cali_chan0_handle = NULL;
+    adc_cali_handle_t adc1_cali_chan1_handle = NULL;
+
+    //adc_oneshot_unit_handle_t adc2_handle = NULL; // ADC2 is not configured for use on this set of boards (jumper setting)
+    //adc_cali_handle_t adc2_cali_handle = NULL;
+
+    adcOneshotParams_t vdriveParams = {
+        .TAG = "VDRIVE",
+        .handle = &adc1_handle,
+        .cali_handle = &adc1_cali_chan0_handle,
+        .unit = ADC_UNIT_1,
+        .channel = APP_ADC1_CHAN0,
+        .atten = APP_ADC_ATTEN,
+        .delay_ms = 1000,   // This results in a VERYYY averaged adc reading
+        .filt = &vdrive_filt_handle,
+        .vraw = &vdrive_raw,
+        .vcal = &vdrive_cali,
+        .vfilt = &vdrive_filt,
+    };
+
+    adcOneshotParams_t vntcParams = {
+        .TAG = "VNTC",
+        .handle = &adc1_handle,
+        .cali_handle = &adc1_cali_chan1_handle,
+        .unit = ADC_UNIT_1,
+        .channel = APP_ADC1_CHAN1,
+        .atten = APP_ADC_ATTEN,
+        .delay_ms = 1000,
+        .filt = &vntc_filt_handle,
+        .vraw = &vntc_raw,
+        .vcal = &vntc_cali,
+        .vfilt = &vntc_filt,
+    };
+
+    // ===== Application Task Declarations ===== //
+
     xTaskCreate(rx_task,  "uart_rx_task", 1024*2, NULL, configMAX_PRIORITIES,   NULL);
     xTaskCreate(tx_task,  "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
-    xTaskCreate(adc_task, "adc_rd_task",  1024*2, NULL, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL);
+    xTaskCreate(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(spi_task, "spi_task",  1024*2, NULL, configMAX_PRIORITIES-1,    NULL);
     xTaskCreate(i2c_task, "i2c_task",  1024*2, NULL, configMAX_PRIORITIES-1,    NULL);
 
@@ -234,6 +351,7 @@ void app_main(void) {
             // Drive this pin low if MCU needs to shut down the array for whatever reason
             // ESP32 should relay back to remote if requested channel is not enabled, and not allow switching of the channel
             ret = gpio_set_level(PWM_BUFF_EN_PIN, 1);
+            gpio_set_level(LOAD_SWITCH_EN_PIN, 1);
             if (ret == ESP_OK) {
                 ESP_LOGI(TAG, "MCU PWM enable has been set. FPGA must follow suit.");
             }
@@ -241,22 +359,15 @@ void app_main(void) {
                 ESP_LOGI(TAG, "Issue driving GPIO %d. MCU PWM enable has not been set.", PWM_BUFF_EN_PIN);
             }
         } 
-
-        /*else if (count == 97) {
-            gpio_set_level(PWM_BUFF_EN_PIN, 0);
-            gpio_set_level(HEARTBEAT_LED_PIN, 1);
-        }*/
-        ESP_LOGI(TAG,);
+        
+        get_drive_temp(&ntc_temp, vntc_filt);
+        ESP_LOGI(TAG, "TEMP: %s", adc_temp_names[ntc_temp]);
 
         count++;
         ESP_ERROR_CHECK(app_heartbeat_toggle());
 
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
-
-    // Execution should not get here
-    ESP_ERROR_CHECK(i2c_driver_delete(I2C_MASTER_NUM));
-    ESP_LOGI(TAG, "I2C de-initialized successfully");
 }
 
 /*========================================= END PROGRAM ============================================*/
