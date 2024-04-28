@@ -20,6 +20,7 @@
 #include "app_include/app_i2s.h"   
 #include "app_include/app_bluetooth.h" 
 
+//NOTE: NEED TO PORT IN CHANGES TO ADC TASKS
 static int vdrive_raw = 0;
 static int vdrive_cali = 0;
 static int vdrive_avg = 0;
@@ -86,7 +87,7 @@ static void adc_task(void) {
 }
 
 /*---------------------------------------------------------------
-        UART Stuff
+    UART2 TX FreeRTOS task
 ---------------------------------------------------------------*/
 
 /* UART TX Task */
@@ -99,7 +100,9 @@ static void tx_task(void *arg) {
     }
 }
 
-/* UART RX Task */
+/*---------------------------------------------------------------
+    UART2 RX FreeRTOS task
+---------------------------------------------------------------*/
 static void rx_task(void *arg) {
     const static char *TAG = "U2R";
     esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -114,6 +117,9 @@ static void rx_task(void *arg) {
     free(data);
 }
 
+/*---------------------------------------------------------------
+    I2C FreeRTOS task (for AD5272 digipot)
+---------------------------------------------------------------*/
 static void i2c_task(void *arg) {
     const static char *TAG = "I2C";
     uint8_t dataX[2];
@@ -151,10 +157,21 @@ static void i2c_task(void *arg) {
             }
         }
         else if (count == 4) {
-            ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MID);
-            ret = ad5272_rdac_reg_write(AD5272_RDAC_MID);
-            if (ret != ESP_OK) {
-                ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            //ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MID);
+            //ret = ad5272_rdac_reg_write(AD5272_RDAC_MID);
+            //if (ret != ESP_OK) {
+            //    ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            //}
+            //ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MIN + 10);
+            //ret = ad5272_rdac_reg_write(AD5272_RDAC_MIN + 10);
+            //if (ret != ESP_OK) {
+            //    ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            //}
+            for (int i = AD5272_RDAC_MID; i > AD5272_RDAC_MIN + 20; i--) {
+                ret = ad5272_rdac_reg_write(i);
+                if (ret != ESP_OK) {
+                    ESP_LOGI(TAG, "NACK OR BUS BUSY");
+                }
             }
         }
         else if (count == 5) {
@@ -168,6 +185,9 @@ static void i2c_task(void *arg) {
     }
 }
 
+/*---------------------------------------------------------------
+    SPI Master FreeRTOS Task (Full-duplex comms to Artix7)
+---------------------------------------------------------------*/
 static void spi_task(void *arg) {
     const static char *TAG = "SPI";
     esp_err_t ret = ESP_OK;
@@ -211,6 +231,8 @@ void app_main(void) {
         ESP_LOGI(TAG, "Count: %ld", count);
 
         if (count == 2) { 
+            // Drive this pin low if MCU needs to shut down the array for whatever reason
+            // ESP32 should relay back to remote if requested channel is not enabled, and not allow switching of the channel
             ret = gpio_set_level(PWM_BUFF_EN_PIN, 1);
             if (ret == ESP_OK) {
                 ESP_LOGI(TAG, "MCU PWM enable has been set. FPGA must follow suit.");
@@ -224,6 +246,7 @@ void app_main(void) {
             gpio_set_level(PWM_BUFF_EN_PIN, 0);
             gpio_set_level(HEARTBEAT_LED_PIN, 1);
         }*/
+        ESP_LOGI(TAG,);
 
         count++;
         ESP_ERROR_CHECK(app_heartbeat_toggle());
