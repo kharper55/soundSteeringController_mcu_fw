@@ -65,7 +65,7 @@ typedef enum {
     TEMP_HOT
 } adc_temp_t;
 
-extern const char * adc_temp_names[5];
+extern const char * temperature_names[5];
 
 // User functions
 esp_err_t adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);

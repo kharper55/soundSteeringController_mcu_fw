@@ -40,7 +40,8 @@ adc_filter_t vdrive_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, fal
 adc_filter_t vntc_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
 
 adc_temp_t ntc_temp = TEMP_UNKNOWN;
-extern const char * adc_temp_names[5];
+extern const char * temperature_names[5];
+extern const char * gpio_status_names[2];
 
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task
@@ -175,6 +176,8 @@ static void txTask(void *arg) {
     free(txData);
 }
 */
+// We are expecting some fixed max byte width (but varies among transaction types depending on leading hex-code).
+// We also must pop a known fixed number of crc32 bytes off the end upon reception and compare with a local computation upon the data string
 static void rx_task(void *arg) {
     const static char *TAG = "U2R";
     esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -352,6 +355,32 @@ void app_main(void) {
             // ESP32 should relay back to remote if requested channel is not enabled, and not allow switching of the channel
             ret = gpio_set_level(PWM_BUFF_EN_PIN, 1);
             gpio_set_level(LOAD_SWITCH_EN_PIN, 1);
+
+            // ESP32 on the controller is responsible for ensuring that in no circumstances
+            // does PWM output begin with LOAD_SWITCH_EN driven low. This is accomplished
+            // by holding PWM_BUFF_EN low until an appropriate condition is met. The FPGA
+            // has a similar control signal which is combined with this MCU signal; they must
+            // BOTH be high for PWM output to begin. IF PWM OUTPUT BEGINS WITH LOAD_SWITCH_EN
+            // DRIVEN LOW (i.e DISABLED/OFF!), THEN THE PWM WILL BACK BIAS THE CLAMP DIODES
+            // IN THE MIC4127 GATE DRIVERS, CAUSING A FAINT INCESSANT 40KHZ TONE.
+
+            // SEQUENCE FOR OFF:
+            // PWM_BUFF_EN    <-- LOW
+            // LOAD_SWITCH_EN <-- LOW
+
+            // SEQUENCE FOR ON:
+            // LOAD_SWITCH_EN <-- HIGH
+            // PWM_BUFF_EN    <-- HIGH
+
+            // In simple terms:
+            // When PWM is happening, LOAD_SWITCH_EN must be HIGH
+            // For PWM to actually reach the output, PWM_BUFF_EN must be HIGH, and the FPGA must agree
+            // But in order for the ESP32 to drive PWM_BUFF_EN high, one of either of SDOA/SDOB jacks must be (HIGH?)
+            //      and in addition, user must signal an on/off toggle request via the remote
+
+            // PWM_BUFF_EN should only be driven high given that load switch enable is enabled,
+            // and that either of the two channels is plugged in (sdoa/sdob jack switch),
+            // and that user requests the device to be enabled.
             if (ret == ESP_OK) {
                 ESP_LOGI(TAG, "MCU PWM enable has been set. FPGA must follow suit.");
             }
@@ -361,7 +390,9 @@ void app_main(void) {
         } 
         
         get_drive_temp(&ntc_temp, vntc_filt);
-        ESP_LOGI(TAG, "TEMP: %s", adc_temp_names[ntc_temp]);
+        ESP_LOGI(TAG, "TEMP: %s", temperature_names[ntc_temp]);
+        ESP_LOGI(TAG, "AUX: %s", gpio_status_names[gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA channel analog signal input
+        ESP_LOGI(TAG, "ECM: %s", gpio_status_names[gpio_get_level(ECM_SW_PIN)]);
 
         count++;
         ESP_ERROR_CHECK(app_heartbeat_toggle());

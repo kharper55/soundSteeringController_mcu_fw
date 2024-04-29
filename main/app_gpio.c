@@ -1,5 +1,10 @@
 #include "app_include/app_gpio.h"
 
+const char * gpio_status_names[2] = {
+    "LOW",
+    "HIGH"
+};
+
 esp_err_t app_gpio_init(void) {
     // GP OUTPUTS
     gpio_reset_pin(HEARTBEAT_LED_PIN);

@@ -1,6 +1,6 @@
 #include "app_include/app_adc.h"
 
-const char * adc_temp_names[5] = {
+const char * temperature_names[5] = {
     "UNKOWN",
     "COLD",
     "ROOM",

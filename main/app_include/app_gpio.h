@@ -12,8 +12,8 @@ extern "C" {
 
 // Inputs
 #define FAN_TACHO_PIN           GPIO_NUM_36 // SENSOR_VP on ESP32. Monitor to ensure tachometer is pulsing while fan driven. Use a broad gptimer that is reset on tachometer level changes
-#define ECM_SW_PIN              GPIO_NUM_33 // Jack switch monitor from the condenser mic input
-#define AUX_SW_PIN              GPIO_NUM_35 // Jack switch monitor from the std aux input
+#define ECM_SW_PIN              GPIO_NUM_35 // Jack switch monitor from the condenser mic input
+#define AUX_SW_PIN              GPIO_NUM_33 // Jack switch monitor from the std aux input (swapped with above on 04/28)
 
 // Outputs
 #define HEARTBEAT_LED_PIN       GPIO_NUM_2
@@ -31,11 +31,16 @@ extern "C" {
 // Macros
 
 // Typedefs
+typedef enum {
+    LOW,
+    HIGH
+} gpio_status_t;
 
 // User functions
 esp_err_t app_gpio_init(void);
 esp_err_t app_heartbeat_toggle(void);
 
+extern const char * gpio_status_names[2];
 
 #ifdef __cplusplus
 }
