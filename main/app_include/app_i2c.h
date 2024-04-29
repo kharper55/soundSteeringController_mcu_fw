@@ -27,30 +27,66 @@ extern "C" {
 #define AD5272_RDAC_MIN                 0
 
 // Macros
-#define AD5272_CNT_TO_OHM(UPR_8, LWR_8) (((UPR_8 << 8 | LWR_8) / 1023.0) * 50000 + 50) /* Using 50kOhm variant. Nominal minimum wiper resistance is in range 35-70 ohms */
+#define AD5272_CNT_TO_OHM(UPR8, LWR8) (((UPR8 << 8 | LWR8) / 1023.0) * 50000 + 50) /* Using 50kOhm variant. Nominal minimum wiper resistance is in range 35-70 ohms, so this is added to the value */
 
 // Typedefs
 // AD5272 Commands
 typedef enum {
-    AD5272_NOP,        /* NOP */
-    AD5272_RDAC_WRITE, /* RDAC register write (10 bit data for 1024 wiper positions) */
-    AD5272_RDAC_READ,  /* RDAC register read */
-    AD5272_50TP_WRITE, /* Write the current RDAC value to the next value in 50TP memory */
-    AD5272_SW_RESET,   /* Perform a software reset (sets RDAC value to latest 50TP value. Wiper freezes to midscale if 50-TP memory has not been previously programmed)*/
-    AD5272_50TP_READ,  /* Get value at specified 50TP memroy address (0x01 - 0x32) */
-    AD5272_50TP_ADDR,  /* Get current address of 50TP memory (incremeted upon each write) */
-    AD5272_CTRL_WRITE, /* Control register write */
-    AD5272_CTRL_READ,  /* Control register read */
-    AD5272_SW_SHUTDOWN /* Perform a software shutdown of the device */
-};
+     AD5272_NOP,        /* NOP */
+     AD5272_RDAC_WRITE, /* RDAC register write (10 bit data for 1024 wiper positions) */
+     AD5272_RDAC_READ,  /* RDAC register read */
+     AD5272_50TP_WRITE, /* Write the current RDAC value to the next value in 50TP memory */
+     AD5272_SW_RESET,   /* Perform a software reset (sets RDAC value to latest 50TP value. Wiper freezes to midscale if 50-TP memory has not been previously programmed)*/
+     AD5272_50TP_READ,  /* Get value at specified 50TP memroy address (0x01 - 0x32) */
+     AD5272_50TP_ADDR,  /* Get current address of 50TP memory (incremeted upon each write) */
+     AD5272_CTRL_WRITE, /* Control register write */
+     AD5272_CTRL_READ,  /* Control register read */
+     AD5272_SW_SHUTDOWN /* Perform a software shutdown of the device */
+} AD5272_commands_t;
 
 // AD5272 Control register bits
 typedef enum {
-    AD5272_50TP_WEN,     /* Write enable for 50TP memory */
-    AD5272_RDAC_WEN,     /* Write enable for RDAC/wiper register */
-    AD5272_RESP_EN,      /* Resistor performance mode enable */
-    AD5272_50TP_SUCCESS  /* Status of 50TP memory programming */
-};
+     AD5272_50TP_WEN,     /* Write enable for 50TP memory */
+     AD5272_RDAC_WEN,     /* Write enable for RDAC/wiper register */
+     AD5272_RESP_EN,      /* Resistor performance mode enable */
+     AD5272_50TP_SUCCESS  /* Status of 50TP memory programming */
+} AD5272_ctrl_reg_bits_t;
+
+typedef enum {
+     HOLD,          /* Hold the digipot counts where they are*/
+     INCREMENT,     /* Increment the existing counts */
+     DECREMENT,     /* Decrement the existing counts */
+     WIPER_READ,    /* WIPER write is implied by opting into increment or decrement */
+     CTRL_READ,
+     CTRL_WRITE,
+     OTP_READ,
+     OTP_ADDR,
+     OTP_WRITE,
+     RESET, 
+     SHUTDOWN          
+} AD5272_actions_t;
+
+//typedef AD5272_actions_t uint8_t;
+
+typedef struct {
+     uint16_t * rdacReg;             /* A value between 0 and 1024 representing the wiper pos (tap) of the digipot */
+     uint16_t * ctrlReg;             /* Hex representation of contents in control reg */
+     uint16_t * otpReg;              /* Hex representation of contents in 50tp memory */
+     uint16_t * otpAddr;        
+} digipot_status_t;
+
+typedef struct {
+     AD5272_actions_t * action;      // Hold, increment, decrement (coming soon: excrement)
+     uint16_t * wiperValue;                 /* Desired update value; should be between 0 and 1024 */
+} digipot_ctrl_t;
+
+typedef struct {
+     // NOTE: Other driver-specific configuration info is contained within the app_init function
+     char * TAG;
+     digipot_status_t * status;    // Digipot status contains all register values
+     digipot_ctrl_t * ctrl;        // Action to be performed and value to work with
+     int delay_ms;
+} i2cMasterParams_t;
 
 // User functions
 esp_err_t app_i2c_master_init(void);

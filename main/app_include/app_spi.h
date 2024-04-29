@@ -28,12 +28,21 @@ extern "C" {
 // Macros
 
 // Typedefs
+// NOTE: Other driver-specific configuration info is contained within the app_init function
+typedef struct {
+    char * TAG;
+    spi_device_handle_t * handle;
+    uint8_t * tx_buff; // We're fixing at 4 byte transactions
+    uint8_t * rx_buff; 
+    size_t buff_size;
+    int delay_ms;
+} spiMasterParams_t;
 
 // Static functions
 
 // User functions
 esp_err_t app_spi_init(spi_device_handle_t * spi);
-esp_err_t spi_master_start_transaction(spi_device_handle_t spi, uint8_t data[4], uint8_t data_rx[4], int len);
+esp_err_t spi_master_start_transaction(spi_device_handle_t spi, uint8_t data_tx[4], uint8_t data_rx[4], int len);
 
 #ifdef __cplusplus
 }

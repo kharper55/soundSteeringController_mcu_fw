@@ -1,9 +1,12 @@
 #include "app_include/app_i2c.h"
 
-/**
- * @brief i2c master initialization
- */
+// This file contains function definitions which can be used to easily perform high-level actions with the AD5272 digi pot
+
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t app_i2c_master_init(void) {
+    
     int i2c_master_port = I2C_MASTER_NUM;
 
     i2c_config_t conf = {
@@ -20,14 +23,18 @@ esp_err_t app_i2c_master_init(void) {
     return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
-// Proper implementation of this API is yet to be done
-
+/*---------------------------------------------------------------
+    I2C ?
+---------------------------------------------------------------*/
 // This function populates a data buffer for writing I2C data to the AD5272. All logical protection should be completed elsewhere (for instance some data should only be 6 bits, etc.)
 static void ad5272_update_data_buff(uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES], uint8_t command, uint16_t data) {
     buff[0] = (uint8_t)((command << 2) | (data >> 8));
     buff[AD5272_TRANSACTION_SIZE_BYTES - 1] = (uint8_t)(data);
 }
 
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_ctrl_reg_write(uint8_t code) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
 
@@ -39,6 +46,9 @@ esp_err_t ad5272_ctrl_reg_write(uint8_t code) {
     return i2c_master_write_to_device(I2C_MASTER_NUM, AD5272_ADDR, &buff, AD5272_TRANSACTION_SIZE_BYTES, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_ctrl_reg_read(uint8_t read_buff[AD5272_TRANSACTION_SIZE_BYTES]) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
 
@@ -47,6 +57,9 @@ esp_err_t ad5272_ctrl_reg_read(uint8_t read_buff[AD5272_TRANSACTION_SIZE_BYTES])
 }
 
 /* This function will only work for updating the RDAC granted that the control register RDAC WEN bit has been set */
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_rdac_reg_write(uint16_t value) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
 
@@ -58,6 +71,9 @@ esp_err_t ad5272_rdac_reg_write(uint16_t value) {
     return i2c_master_write_to_device(I2C_MASTER_NUM, AD5272_ADDR, &buff, AD5272_TRANSACTION_SIZE_BYTES, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_rdac_reg_read(uint8_t read_buff[AD5272_TRANSACTION_SIZE_BYTES]) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
 
@@ -65,6 +81,9 @@ esp_err_t ad5272_rdac_reg_read(uint8_t read_buff[AD5272_TRANSACTION_SIZE_BYTES])
     return i2c_master_write_read_device(I2C_MASTER_NUM, AD5272_ADDR, &buff, AD5272_TRANSACTION_SIZE_BYTES, read_buff, AD5272_TRANSACTION_SIZE_BYTES, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_50tp_mem_write(void) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
 
@@ -72,6 +91,9 @@ esp_err_t ad5272_50tp_mem_write(void) {
     return i2c_master_write_to_device(I2C_MASTER_NUM, AD5272_ADDR, &buff, AD5272_TRANSACTION_SIZE_BYTES, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_50tp_mem_read(uint8_t addr, uint8_t read_buff[AD5272_TRANSACTION_SIZE_BYTES]) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
     
@@ -84,6 +106,9 @@ esp_err_t ad5272_50tp_mem_read(uint8_t addr, uint8_t read_buff[AD5272_TRANSACTIO
 }
 
 // Reset RDAC register to most recently programmed 50tp value
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_sw_reset(void) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
 
@@ -92,6 +117,9 @@ esp_err_t ad5272_sw_reset(void) {
 }
 
 // Not sure what this does; thanks AD!
+/*---------------------------------------------------------------
+    I2C Ctrl reg write
+---------------------------------------------------------------*/
 esp_err_t ad5272_sw_shutdown(void) {
     uint8_t buff[AD5272_TRANSACTION_SIZE_BYTES];
 

@@ -50,13 +50,13 @@ esp_err_t app_spi_init(spi_device_handle_t * spi) {
  * mode for higher speed. The overhead of interrupt transactions is more than
  * just waiting for the transaction to complete.
  */
-esp_err_t spi_master_start_transaction(spi_device_handle_t spi, uint8_t data[4], uint8_t data_rx[4], int len) {
+esp_err_t spi_master_start_transaction(spi_device_handle_t spi, uint8_t data_tx[4], uint8_t data_rx[4], int len) {
     esp_err_t ret;
     spi_transaction_t t;
     if (len==0) return ESP_OK;             //no need to send anything
     memset(&t, 0, sizeof(t));       //Zero out the transaction
     t.length=len*8;                 //Len is in bytes, transaction length is in bits.
-    t.tx_buffer=data;               //Data
+    t.tx_buffer=data_tx;               //Data
     t.rx_buffer=data_rx;
     //t.tx_data[3]=data[3];      
     //t.tx_data[2]=data[2]; 

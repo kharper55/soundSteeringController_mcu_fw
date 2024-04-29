@@ -40,6 +40,14 @@ adc_filter_t vdrive_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, fal
 adc_filter_t vntc_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
 
 adc_temp_t ntc_temp = TEMP_UNKNOWN;
+uint16_t rdacReg = 0;
+uint16_t ctrlReg = 0;
+uint16_t otpReg = 0;
+uint16_t otpAddr = 0;
+
+AD5272_actions_t digipot_action = HOLD;
+uint16_t digipot_value = AD5272_RDAC_MID;
+
 extern const char * temperature_names[5];
 extern const char * gpio_status_names[2];
 extern const char * serial_cmd_names[7];
@@ -207,11 +215,27 @@ static void rx_task(void *arg) {
 /*---------------------------------------------------------------
     I2C FreeRTOS task (for AD5272 digipot)
 ---------------------------------------------------------------*/
-static void i2c_task(void *arg) {
-    const static char *TAG = "I2C";
-    uint8_t dataX[2];
-    uint8_t dataY[2];
+static void i2c_task(void * pvParameters) {
+
+    const uint8_t BUFF_SIZE = 2; // In bytes
+    uint8_t rx_buff[BUFF_SIZE];
     esp_err_t ret = ESP_OK;
+
+    // Params
+    i2cMasterParams_t * params = (i2cMasterParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+    digipot_status_t * status = params->status;
+
+    uint16_t * otpReg = status->rdacReg;
+    uint16_t * rdacReg = status->ctrlReg;
+    uint16_t * ctrlReg = status->otpReg;
+    uint16_t * otpAddr = status->otpAddr;
+
+    digipot_ctrl_t * ctrl = params->ctrl;
+    AD5272_actions_t * action = ctrl->action;
+    uint16_t * wiperVal = ctrl->wiperValue; // dereference locally to change value
+
+    int delay_ms = params->delay_ms;
 
     // factor this to 1. take params
     //                2. act on the received value from uart2/bluetooth
@@ -220,16 +244,16 @@ static void i2c_task(void *arg) {
     ESP_LOGI(TAG, "I2C initialized successfully.");
     while(1) {
 
-        ret = ad5272_rdac_reg_read(&dataX);
+        ret = ad5272_rdac_reg_read(&rx_buff);
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "read RDAC bits: %d counts (%.2f ohms).", dataX[0] << 8 | dataX[1], AD5272_CNT_TO_OHM(dataX[0], dataX[1]));
+            ESP_LOGI(TAG, "read RDAC bits: %d counts (%.2f ohms).", rx_buff[0] << 8 | rx_buff[1], AD5272_CNT_TO_OHM(rx_buff[0], rx_buff[1]));
         } else {
             ESP_LOGI(TAG, "NACK OR BUS BUSY");
         }
 
-        ret = ad5272_ctrl_reg_read(&dataY);
+        ret = ad5272_ctrl_reg_read(&rx_buff);
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Control bits: 0x%X", ((dataY[0] << 8) | dataY[1]));
+            ESP_LOGI(TAG, "Control bits: 0x%X", ((rx_buff[0] << 8) | rx_buff[1]));
         } else {
             ESP_LOGI(TAG, "NACK OR BUS BUSY");
         }
@@ -271,7 +295,7 @@ static void i2c_task(void *arg) {
                 ESP_LOGI(TAG, "NACK OR BUS BUSY");
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
     
     // Execution should not get here
@@ -282,22 +306,37 @@ static void i2c_task(void *arg) {
 /*---------------------------------------------------------------
     SPI Master FreeRTOS Task (Full-duplex comms to Artix7)
 ---------------------------------------------------------------*/
-static void spi_task(void *arg) {
-    const static char *TAG = "SPI";
+static void spi_task(void * pvParameters) {
+
+    const bool VERBOSE = false;
+    
+    spiMasterParams_t * params = (spiMasterParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+    spi_device_handle_t * handle = params->handle;
+    uint8_t * tx_buff = params->tx_buff;
+    uint8_t * rx_buff = params->rx_buff;
+    size_t buff_size = params->buff_size;
+    int delay_ms = params->delay_ms;
+
     esp_err_t ret = ESP_OK;
-    spi_device_handle_t spi;
-    app_spi_init(&spi);
+
+    app_spi_init(handle);
 
     while(1) {
-        //ESP_LOGI(TAG, "SPI Writing 0x%x...", (spi_tx_data[3] << 24) | (spi_tx_data[2] << 16) | (spi_tx_data[1] << 8) | (spi_tx_data[0]));
-        ret = spi_master_start_transaction(spi, spi_tx_data, spi_rx_data, 4);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Wrote 0x%08X.", (spi_tx_data[0] << 24) | (spi_tx_data[1] << 16) | (spi_tx_data[2] << 8) | (spi_tx_data[3]));  
-            ESP_LOGI(TAG, "Read 0x%08X.", (spi_rx_data[3] << 24) | (spi_rx_data[2] << 16) | (spi_rx_data[1] << 8) | (spi_rx_data[0]));     
-        } else {
-            ESP_LOGI(TAG, "TRANSACTION FAILED OR BUS BUSY");
+
+        // Add a flag here to send ?
+        // Need to get data from uart2 rx task into here and vice versa
+
+        ret = spi_master_start_transaction(*handle, tx_buff, rx_buff, (int)buff_size);
+        if(VERBOSE) {
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "Wrote 0x%08X.", (tx_buff[0] << 24) | (tx_buff[1] << 16) | (tx_buff[2] << 8) | (tx_buff[3]));  
+                ESP_LOGI(TAG, "Read 0x%08X.", (rx_buff[3] << 24) | (rx_buff[2] << 16) | (rx_buff[1] << 8) | (rx_buff[0]));     
+            } else {
+                ESP_LOGI(TAG, "TRANSACTION FAILED OR BUS BUSY");
+            }    
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
 }
 
@@ -317,7 +356,9 @@ void app_main(void) {
     adc_cali_handle_t adc1_cali_chan0_handle = NULL;
     adc_cali_handle_t adc1_cali_chan1_handle = NULL;
 
-    //adc_oneshot_unit_handle_t adc2_handle = NULL; // ADC2 is not configured for use on this set of boards (jumper setting)
+    spi_device_handle_t spi;
+
+    //adc_oneshot_unit_handle_t adc2_handle = NULL; // ADC2 is not currently configured for use on this set of boards (jumper setting)
     //adc_cali_handle_t adc2_cali_handle = NULL;
 
     adcOneshotParams_t vdriveParams = {
@@ -331,7 +372,7 @@ void app_main(void) {
         .filt = &vdrive_filt_handle,
         .vraw = &vdrive_raw,
         .vcal = &vdrive_cali,
-        .vfilt = &vdrive_filt,
+        .vfilt = &vdrive_filt
     };
 
     adcOneshotParams_t vntcParams = {
@@ -345,17 +386,46 @@ void app_main(void) {
         .filt = &vntc_filt_handle,
         .vraw = &vntc_raw,
         .vcal = &vntc_cali,
-        .vfilt = &vntc_filt,
+        .vfilt = &vntc_filt
     };
 
+    spiMasterParams_t mspiParams = {
+        .TAG = "MSPI",
+        .handle = &spi,
+        .tx_buff = &spi_tx_data, // We're fixing at 4 byte transactions
+        .rx_buff = &spi_rx_data,
+        .buff_size = 4,
+        .delay_ms = 1000
+    };
+
+    // This struct is passed to the I2C params into the I2C task and the members' memory locations are updated from there for readout elsewhere
+    digipot_status_t digipotStatus = {
+        .rdacReg = &rdacReg,
+        .ctrlReg = &ctrlReg,
+        .otpReg = &otpReg,
+        .otpAddr = &otpAddr
+    };
+
+    digipot_ctrl_t digipotCtrl = {
+        .action = &digipot_action,  // This action is to be update by other tasks
+        .wiperValue = &digipot_value,   // This value is only used for updating the RDAC register
+    };
+
+    i2cMasterParams_t mi2cParams = {
+        .TAG = "MI2C",
+        .status = &digipotStatus,
+        .ctrl = &digipotCtrl,
+        .delay_ms = 1000
+    };
+    
     // ===== Application Task Declarations ===== //
 
-    xTaskCreate(rx_task,  "uart_rx_task", 1024*2, NULL, configMAX_PRIORITIES,   NULL);
+    xTaskCreate(rx_task,  "uart_rx_task", 1024*2, NULL, configMAX_PRIORITIES, NULL);
     xTaskCreate(tx_task,  "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
     xTaskCreate(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL);
-    xTaskCreate(spi_task, "spi_task",  1024*2, NULL, configMAX_PRIORITIES-1,    NULL);
-    xTaskCreate(i2c_task, "i2c_task",  1024*2, NULL, configMAX_PRIORITIES-1,    NULL);
+    xTaskCreate(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(i2c_task, "i2c_task",  1024*2, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL);
 
     while(1) {
 
