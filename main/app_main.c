@@ -48,6 +48,8 @@ uint16_t otpAddr = 0;
 AD5272_actions_t digipot_action = HOLD;
 uint16_t digipot_value = AD5272_RDAC_MID;
 
+bool artix7_send_flag = false;
+
 extern const char * temperature_names[5];
 extern const char * gpio_status_names[2];
 extern const char * serial_cmd_names[7];
@@ -119,6 +121,7 @@ static void adc_task(void * pvParameters) {
     UART2 TX FreeRTOS task
 ---------------------------------------------------------------*/
 static void tx_task(void *arg) {
+    // Work is yet to be done here to complete the communication circle from remote to controller
     const static char *TAG = "U2T";
     esp_log_level_set(TAG, ESP_LOG_INFO);
     while (1) {
@@ -132,15 +135,24 @@ static void tx_task(void *arg) {
 ---------------------------------------------------------------*/
 // We are expecting some fixed max byte width (but varies among transaction types depending on leading hex-code).
 // We also must pop a known fixed number of crc32 bytes (8) off the end upon reception and compare with a local computation upon the data string
-static void rx_task(void *arg) {
+static void rx_task(void * pvParameters) {
 
 
     const int MIN_RX_BYTES = 9;
+    const int MAX_RX_BYTES = 17;
     const int CRC_SIZE = 8;
-
-    const static char *TAG = "U2R";
-    esp_log_level_set(TAG, ESP_LOG_INFO);
     uint8_t * data = (uint8_t*) malloc(RX_BUF_SIZE+1);
+
+    //const static char *TAG = "U2R";
+    //esp_log_level_set(TAG, ESP_LOG_INFO);
+
+    // Parameters for U2Rx
+    u2rxParams_t * params = (u2rxParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+    uint8_t * data2 = params->data_buff;
+    size_t data_buff_len = params->buff_len;
+    bool * flag = params->flag;
+    int delay_ms = params->delay_ms;
 
     /*
     // Typedefs
@@ -158,7 +170,8 @@ static void rx_task(void *arg) {
     while (1) {
 
         const int rxBytes = uart_read_bytes(UART_NUM_2, data, RX_BUF_SIZE, 10 / portTICK_PERIOD_MS);
-        if (rxBytes && rxBytes >= MIN_RX_BYTES) { // Verify we received at least the minimum number of bytes required
+        
+        if (rxBytes && (rxBytes >= MIN_RX_BYTES && rxBytes < MAX_RX_BYTES)) { // Verify we received at least the minimum number of bytes required
 
             uint32_t rxCRC = 0;
 
@@ -194,6 +207,18 @@ static void rx_task(void *arg) {
                     case(CHANGE_COORD):
                         // signal to the microblaze that we'd like to change coordinates
                         // Stuff the new data into a shared struct type. SPI master task will register the change and communicate the data
+                  
+                        // may need to double up on transactions 
+                        // since our data length is so wide
+
+                        data2[0] = concat_hex_chars(data[1], data[2]); // These bytes represent the azimuth angle
+                        data2[1] = concat_hex_chars(data[3], data[4]); // These bytes represent the elevation angle
+                        data2[3] = 0x00;
+                        data2[4] = 0x00;
+                        *flag = true;
+
+                        // Populate the buffer and set a flag so that the spi task recognizes
+                        
                         break;
                     case(CHANGE_VOLUME):
                         // increment or decrement the digipot according to a comparision to local static copy of pertinent var
@@ -308,7 +333,7 @@ static void i2c_task(void * pvParameters) {
 ---------------------------------------------------------------*/
 static void spi_task(void * pvParameters) {
 
-    const bool VERBOSE = false;
+    const bool VERBOSE = true;
     
     spiMasterParams_t * params = (spiMasterParams_t *) pvParameters;
     const char * TAG = params->TAG;
@@ -316,6 +341,7 @@ static void spi_task(void * pvParameters) {
     uint8_t * tx_buff = params->tx_buff;
     uint8_t * rx_buff = params->rx_buff;
     size_t buff_size = params->buff_size;
+    bool * flag = params->flag; // read here and reset
     int delay_ms = params->delay_ms;
 
     esp_err_t ret = ESP_OK;
@@ -327,14 +353,19 @@ static void spi_task(void * pvParameters) {
         // Add a flag here to send ?
         // Need to get data from uart2 rx task into here and vice versa
 
-        ret = spi_master_start_transaction(*handle, tx_buff, rx_buff, (int)buff_size);
-        if(VERBOSE) {
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "Wrote 0x%08X.", (tx_buff[0] << 24) | (tx_buff[1] << 16) | (tx_buff[2] << 8) | (tx_buff[3]));  
-                ESP_LOGI(TAG, "Read 0x%08X.", (rx_buff[3] << 24) | (rx_buff[2] << 16) | (rx_buff[1] << 8) | (rx_buff[0]));     
-            } else {
-                ESP_LOGI(TAG, "TRANSACTION FAILED OR BUS BUSY");
-            }    
+        if(*flag) {
+
+            ret = spi_master_start_transaction(*handle, tx_buff, rx_buff, (int)buff_size);
+            if(VERBOSE) {
+                if (ret == ESP_OK) {
+                    ESP_LOGI(TAG, "Wrote 0x%08X.", (tx_buff[0] << 24) | (tx_buff[1] << 16) | (tx_buff[2] << 8) | (tx_buff[3]));  
+                    ESP_LOGI(TAG, "Read 0x%08X.", (rx_buff[3] << 24) | (rx_buff[2] << 16) | (rx_buff[1] << 8) | (rx_buff[0]));     
+                } else {
+                    ESP_LOGI(TAG, "TRANSACTION FAILED OR BUS BUSY");
+                }    
+            }
+            *flag = false;
+
         }
         vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
@@ -351,6 +382,14 @@ void app_main(void) {
     ESP_LOGI(TAG, "UART2 initialized successfully.");
     app_gpio_init();
     app_i2s_init();
+
+    u2rxParams_t u2rxParams = {
+        .TAG = "U2R",
+        .data_buff = &spi_tx_data, // Data comes from U2Rx, and goes to SPI master task, then sent to artix7
+        .buff_len = 4,
+        .flag = &artix7_send_flag,
+        .delay_ms = 0
+    };
 
     adc_oneshot_unit_handle_t adc1_handle = NULL;
     adc_cali_handle_t adc1_cali_chan0_handle = NULL;
@@ -395,7 +434,8 @@ void app_main(void) {
         .tx_buff = &spi_tx_data, // We're fixing at 4 byte transactions
         .rx_buff = &spi_rx_data,
         .buff_size = 4,
-        .delay_ms = 1000
+        .flag = &artix7_send_flag,
+        .delay_ms = 10
     };
 
     // This struct is passed to the I2C params into the I2C task and the members' memory locations are updated from there for readout elsewhere
@@ -420,7 +460,9 @@ void app_main(void) {
     
     // ===== Application Task Declarations ===== //
 
-    xTaskCreate(rx_task,  "uart_rx_task", 1024*2, NULL, configMAX_PRIORITIES, NULL);
+    // add dedicated gpio task?
+
+    xTaskCreate(rx_task,  "uart_rx_task", 1024*2, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
     xTaskCreate(tx_task,  "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
     xTaskCreate(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL);
@@ -479,7 +521,8 @@ void app_main(void) {
         count++;
         ESP_ERROR_CHECK(app_heartbeat_toggle());
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        //vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(HEARTBEAT_BLINK_PERIOD_MS / portTICK_PERIOD_MS);
     }
 }
 

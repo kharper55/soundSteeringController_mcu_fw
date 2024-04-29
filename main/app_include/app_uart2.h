@@ -38,6 +38,14 @@ typedef enum serial_cmds_t {
     REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device
 };
 
+typedef struct {
+    const char * TAG;
+    uint8_t * data_buff;
+    size_t buff_len;
+    bool * flag;            // Set high to inform neighboring tasks to act on new data
+    int delay_ms;
+} u2rxParams_t;
+
 extern const char * serial_cmd_names[7];
 
 // Static functions

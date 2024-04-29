@@ -27,6 +27,7 @@ extern "C" {
 #define EXTRA_IO2_PIN           GPIO_NUM_18
 
 // Settings
+#define HEARTBEAT_BLINK_PERIOD_MS 100
 
 // Macros
 

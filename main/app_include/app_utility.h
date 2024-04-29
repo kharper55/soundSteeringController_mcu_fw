@@ -31,7 +31,9 @@ extern "C" {
 // User functions
 uint32_t app_compute_crc32_str(char * str, int data_len);
 uint32_t app_compute_crc32_bytes(uint8_t * bytes, int data_len);
-uint8_t hex2dec(uint8_t data);
+//uint8_t hex2dec(uint8_t data);
+uint8_t hex2dec(char data);
+uint8_t concat_hex_chars(char high, char low);
 
 #ifdef __cplusplus
 }

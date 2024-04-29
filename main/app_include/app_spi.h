@@ -35,6 +35,7 @@ typedef struct {
     uint8_t * tx_buff; // We're fixing at 4 byte transactions
     uint8_t * rx_buff; 
     size_t buff_size;
+    bool * flag;
     int delay_ms;
 } spiMasterParams_t;
 
