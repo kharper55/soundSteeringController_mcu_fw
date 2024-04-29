@@ -19,6 +19,7 @@
 #include "app_include/app_i2c.h"
 #include "app_include/app_i2s.h"   
 #include "app_include/app_bluetooth.h" 
+#include "app_include/app_timer.h"
 
 //NOTE: NEED TO PORT IN CHANGES TO ADC TASKS
 static int vdrive_raw = 0;
@@ -242,6 +243,8 @@ static void rx_task(void * pvParameters) {
 ---------------------------------------------------------------*/
 static void i2c_task(void * pvParameters) {
 
+    const bool VERBOSE = false;
+
     const uint8_t BUFF_SIZE = 2; // In bytes
     uint8_t rx_buff[BUFF_SIZE];
     esp_err_t ret = ESP_OK;
@@ -265,23 +268,30 @@ static void i2c_task(void * pvParameters) {
     // factor this to 1. take params
     //                2. act on the received value from uart2/bluetooth
 
+
     ESP_ERROR_CHECK(app_i2c_master_init());
     ESP_LOGI(TAG, "I2C initialized successfully.");
+    ad5272_sw_reset();
     while(1) {
 
         ret = ad5272_rdac_reg_read(&rx_buff);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "read RDAC bits: %d counts (%.2f ohms).", rx_buff[0] << 8 | rx_buff[1], AD5272_CNT_TO_OHM(rx_buff[0], rx_buff[1]));
-        } else {
-            ESP_LOGI(TAG, "NACK OR BUS BUSY");
+        if (VERBOSE) {
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "read RDAC bits: %d counts (%.2f ohms).", rx_buff[0] << 8 | rx_buff[1], AD5272_CNT_TO_OHM(rx_buff[0], rx_buff[1]));
+            } else {
+                ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            }
         }
 
         ret = ad5272_ctrl_reg_read(&rx_buff);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Control bits: 0x%X", ((rx_buff[0] << 8) | rx_buff[1]));
-        } else {
-            ESP_LOGI(TAG, "NACK OR BUS BUSY");
+        if (VERBOSE) { 
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "Control bits: 0x%X", ((rx_buff[0] << 8) | rx_buff[1]));
+            } else {
+                ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            }
         }
+
 
         if (count == 3) {
             ESP_LOGI(TAG, "Unlocking RDAC");
@@ -289,13 +299,13 @@ static void i2c_task(void * pvParameters) {
             if (ret != ESP_OK) {
                 ESP_LOGI(TAG, "NACK OR BUS BUSY");
             }
-            ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MAX);
-            ret = ad5272_rdac_reg_write(AD5272_RDAC_MAX);
+            ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MID / 16);
+            ret = ad5272_rdac_reg_write(/*AD5272_RDAC_MAX*/AD5272_RDAC_MID / 16);
             if (ret != ESP_OK) {
                 ESP_LOGI(TAG, "NACK OR BUS BUSY");
             }
         }
-        else if (count == 4) {
+        //else if (count == 4) {
             //ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MID);
             //ret = ad5272_rdac_reg_write(AD5272_RDAC_MID);
             //if (ret != ESP_OK) {
@@ -306,14 +316,15 @@ static void i2c_task(void * pvParameters) {
             //if (ret != ESP_OK) {
             //    ESP_LOGI(TAG, "NACK OR BUS BUSY");
             //}
-            for (int i = AD5272_RDAC_MID; i > AD5272_RDAC_MIN + 20; i--) {
-                ret = ad5272_rdac_reg_write(i);
-                if (ret != ESP_OK) {
-                    ESP_LOGI(TAG, "NACK OR BUS BUSY");
-                }
-            }
-        }
-        else if (count == 5) {
+            //for (int i = AD5272_RDAC_MID; i > AD5272_RDAC_MIN; i--) {
+            //    ret = ad5272_rdac_reg_write(i);
+            //    if (ret != ESP_OK) {
+            //        ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            //   }
+            //}
+        //}
+        else if (count == 128) {
+            //ret = ad5272_rdac_reg_write(20);
             ESP_LOGI(TAG, "Locking RDAC");
             ret = ad5272_ctrl_reg_write(0x0);
             if (ret != ESP_OK) {
@@ -388,7 +399,7 @@ void app_main(void) {
         .data_buff = &spi_tx_data, // Data comes from U2Rx, and goes to SPI master task, then sent to artix7
         .buff_len = 4,
         .flag = &artix7_send_flag,
-        .delay_ms = 0
+        .delay_ms = 10
     };
 
     adc_oneshot_unit_handle_t adc1_handle = NULL;
@@ -455,19 +466,19 @@ void app_main(void) {
         .TAG = "MI2C",
         .status = &digipotStatus,
         .ctrl = &digipotCtrl,
-        .delay_ms = 1000
+        .delay_ms = 10
     };
     
     // ===== Application Task Declarations ===== //
 
     // add dedicated gpio task?
 
-    xTaskCreate(rx_task,  "uart_rx_task", 1024*2, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
+    xTaskCreate(rx_task,  "uart_rx_task", 1024*4, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
     xTaskCreate(tx_task,  "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
     xTaskCreate(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL);
-    xTaskCreate(i2c_task, "i2c_task",  1024*2, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(i2c_task, "i2c_task",  1024*4, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL);
 
     while(1) {
 

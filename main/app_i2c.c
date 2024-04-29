@@ -126,21 +126,3 @@ esp_err_t ad5272_sw_shutdown(void) {
     ad5272_update_data_buff(buff, AD5272_SW_RESET, 0x1);
     return i2c_master_write_to_device(I2C_MASTER_NUM, AD5272_ADDR, &buff, AD5272_TRANSACTION_SIZE_BYTES, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
-
-/*
-esp_err_t ad5272_write(uint8_t buff[2], uint8_t code, uint16_t data) {
-
-    static esp_err_t ret;
-
-
-    switch(code) {
-
-        case (AD5272_RDAC_WRITE):
-            ad5272_update_data_buff(buff, code, data);
-            return i2c_master_write_to_device(I2C_MASTER_NUM, AD5272_ADDR, &buff, 2, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
-        case (AD5272_50TP_WRITE):
-        case (AD5272_CTRL_WRITE):
-        default:
-
-    }
-}*/
