@@ -42,6 +42,7 @@ adc_filter_t vntc_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false
 adc_temp_t ntc_temp = TEMP_UNKNOWN;
 extern const char * temperature_names[5];
 extern const char * gpio_status_names[2];
+extern const char * serial_cmd_names[7];
 
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task
@@ -121,75 +122,86 @@ static void tx_task(void *arg) {
 /*---------------------------------------------------------------
     UART2 RX FreeRTOS task
 ---------------------------------------------------------------*/
-
-// FOR REFERENCE, THE UART2 TX_TASK ON THE REMOTE END IS:
-/*
-static void txTask(void *arg) {
-
-    static const char * TX_TASK_TAG = "TX_TASK";
-    esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
-
-    char * txData = (char *) malloc(TX_BUF_SIZE + 1);
-    char * crcBuff = (char *) malloc(sizeof(uint32_t) + 1);
-
-    const int16_t POS_OFFSET = 30;
-    const char DELIM = '/';
-
-    // both encoders should spit out counts between +=30
-    // both pots -> might want to filter the adc counts, and then scale via bit shift (12 bit to 8 bit?)
-    static int16_t temp_azimuthPos = MIN_ENCODER_COUNTS; // -30
-    static int16_t temp_elevPos = MIN_ENCODER_COUNTS;    // -30
-    //static uint8_t temp_potc_counts = PCT_MIN; // 0
-    //static uint8_t temp_potd_counts = PCT_MIN; // 0
-    static int16_t temp_potc_counts = 0; // 0
-    static int16_t temp_potd_counts = 0; // 0
-    int16_t potc_scaled = 0;
-    int16_t potd_scaled = 0;
-
-    // use some switch case and simple assignment to classify which code should be sent based on running system state
-    // also append the crc, use fixed width hex in order to omit delimiters
-
-    while (1) {
-        //if (xQueueReceive(sendData(TX_TASK_TAG, "Hello world") == pdTrue)) {}
-        //(int16_t)SCALE_VPOT_INVERT(vpotd_filt)
-        potc_scaled = SCALE_VPOT_INVERT((vpotc_filt));
-        potd_scaled = SCALE_VPOT_INVERT((vpotd_filt));
-
-        if ((posA != temp_azimuthPos) || (posB != temp_elevPos) || 
-            (potc_scaled != temp_potc_counts) || (potd_scaled != temp_potd_counts)) {
-
-            temp_azimuthPos = posA;
-            temp_elevPos = posB;
-            temp_potc_counts = potc_scaled;
-            temp_potd_counts = potd_scaled;        
-
-            sprintf(txData,"%02X%02X%02X%02X", (uint8_t)(temp_azimuthPos + POS_OFFSET), (uint8_t)(temp_elevPos + POS_OFFSET), temp_potc_counts, temp_potd_counts);
-            const int len = strlen(txData);
-            uint32_t crc = app_compute_crc32(txData, len);
-            const int txBytes = uart_write_bytes(UART_NUM_2, txData, len);
-            ESP_LOGI(TX_TASK_TAG, "Wrote %d bytes: '%s/%lu'", txBytes, txData, crc);   
-        }
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-
-    free(txData);
-}
-*/
 // We are expecting some fixed max byte width (but varies among transaction types depending on leading hex-code).
-// We also must pop a known fixed number of crc32 bytes off the end upon reception and compare with a local computation upon the data string
+// We also must pop a known fixed number of crc32 bytes (8) off the end upon reception and compare with a local computation upon the data string
 static void rx_task(void *arg) {
+
+
+    const int MIN_RX_BYTES = 9;
+    const int CRC_SIZE = 8;
+
     const static char *TAG = "U2R";
     esp_log_level_set(TAG, ESP_LOG_INFO);
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE+1);
+    uint8_t * data = (uint8_t*) malloc(RX_BUF_SIZE+1);
+
+    /*
+    // Typedefs
+    typedef enum serial_cmds_t {
+        NOP                      = 0x0,
+        TOGGLE_ON_OFF            = 0x2,  // Hex code for togglining device on/off (i.e. power to the array)
+        CHANGE_CHANNEL           = 0x4,  // Hex code for changing only channel with one transaction
+        CHANGE_COORD             = 0x8,  // Hex code for changing only coordinate with one transaction
+        CHANGE_VOLUME            = 0xA,  // Hex code for changing only volume with one transaction
+        CHANGE_COORD_AND_VOLUME  = 0xC,  // Hex code for changing volume, channel, and coordinate with one transaction
+        REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device
+    };
+    */
+
     while (1) {
-        const int rxBytes = uart_read_bytes(UART_NUM_2, data, RX_BUF_SIZE, 100 / portTICK_PERIOD_MS);
-        if (rxBytes > 0) {
-            data[rxBytes] = 0;
-            ESP_LOGI(TAG, "Read %d bytes: '%s'", rxBytes, data);
+
+        const int rxBytes = uart_read_bytes(UART_NUM_2, data, RX_BUF_SIZE, 10 / portTICK_PERIOD_MS);
+        if (rxBytes && rxBytes >= MIN_RX_BYTES) { // Verify we received at least the minimum number of bytes required
+
+            uint32_t rxCRC = 0;
+
+            for (int i = 0; i < CRC_SIZE; i++) {
+                uint8_t decValue = hex2dec(data[rxBytes - CRC_SIZE + i]);
+      
+                // Combine hexadecimal value into the CRC
+                rxCRC |= (uint32_t)decValue << ((CRC_SIZE - 1 - i) * 4); // Adjusted bit shift index
+            }
+
+            // Log received data
+            data[rxBytes - CRC_SIZE] = 0; // Null-terminate data string before CRC
+            ESP_LOGI(TAG, "Read %d bytes: '%s'", rxBytes - CRC_SIZE, data);
+
+            // Compute local CRC
+            uint32_t localCRC = app_compute_crc32_bytes(data, rxBytes - CRC_SIZE);
+
+            // Compare CRCs
+            if (localCRC != rxCRC) {
+                ESP_LOGI(TAG, "CRC Mismatch!\n\nRX    : %08lX\nLOCAL : %08lX", rxCRC, localCRC);
+                // Set a flag that is registered in the txTask that will communicate back to the remote requesting new data
+            }
+            // CRC check passed
+            else {
+                // Grab code byte (MSB)
+                switch(hex2dec(data[0])) {
+                    case(TOGGLE_ON_OFF):
+                        // should drive gpio accordingly. Optionally tell microblaze to mute the steering peripheral.
+                        break;
+                    case(CHANGE_CHANNEL): // Could have like a subcase here, since both change channel and change coord need to signal to
+                        // signal to the microblaze that we'd like to change channels
+                        break;
+                    case(CHANGE_COORD):
+                        // signal to the microblaze that we'd like to change coordinates
+                        // Stuff the new data into a shared struct type. SPI master task will register the change and communicate the data
+                        break;
+                    case(CHANGE_VOLUME):
+                        // increment or decrement the digipot according to a comparision to local static copy of pertinent var
+                        break;
+                    case(CHANGE_COORD_AND_VOLUME):
+                        // increment or decrement the digipot, and also send new coordinates to MATLAB
+                        break;
+                    default:
+                        break;
+                }
+                ESP_LOGI(TAG, "GOT COMMAND: %d", hex2dec(data[0]));
+            }
         }
     }
     free(data);
+
 }
 
 /*---------------------------------------------------------------

@@ -1,5 +1,15 @@
 #include "app_include/app_uart2.h"
 
+const char * serial_cmd_names[7] = {
+   "NOP",
+   "TOGGLE ON/OFF",
+   "CHANGE CHANNEL",
+   "CHANGE COORDINATE",
+   "CHANGE VOLUME",
+   "CHANGE COORDINATE & VOLUME"
+   "REQUEST INFO"
+};
+
 /* UART initialization function */
 void app_uart2_init(int baud) {
     const uart_config_t uart_config = {

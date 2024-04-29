@@ -29,15 +29,16 @@ This can be changed via menuconfig. UART0 is configured to work with the on boar
 
 // Typedefs
 typedef enum serial_cmds_t {
-    TOGGLE_ON_OFF             = 0x0,  // Hex code for toggling device on/off (i.e. power to the array)
-    CHANGE_CHANNEL            = 0x2,  // Hex code for changing only channel with one transaction
-    CHANGE_VOLUME             = 0x4,  // Hex code for changing only volume with one transaction
-    CHANGE_COORD              = 0x6,  // Hex code for changing only coordinate with one transaction
-    CHANGE_CHANNEL_AND_VOLUME = 0x8,  // Hex code for changing both channel and volume with one transaction
-    CHANGE_VOLUME_AND_COORD   = 0xA,  // Hex code for changing both volume and coordination with one transaction
-    CHANGE_ALL                = 0xC,  // Hex code for changing volume, channel, and coordination with one transaction
-    REQUEST_INFO              = 0xE   // Hex code for requesting readback from the device
+    NOP                      = 0x0,
+    TOGGLE_ON_OFF            = 0x2,  // Hex code for togglining device on/off (i.e. power to the array)
+    CHANGE_CHANNEL           = 0x4,  // Hex code for changing only channel with one transaction
+    CHANGE_COORD             = 0x8,  // Hex code for changing only coordinate with one transaction
+    CHANGE_VOLUME            = 0xA,  // Hex code for changing only volume with one transaction
+    CHANGE_COORD_AND_VOLUME  = 0xC,  // Hex code for changing volume, channel, and coordinate with one transaction
+    REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device
 };
+
+extern const char * serial_cmd_names[7];
 
 // Static functions
 
