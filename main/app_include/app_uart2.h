@@ -43,6 +43,8 @@ typedef struct {
     uint8_t * data_buff;
     size_t buff_len;
     bool * flag;            // Set high to inform neighboring tasks to act on new data
+    bool * flag2;           // for i2c, no time to explain
+    uint16_t val;
     int delay_ms;
 } u2rxParams_t;
 

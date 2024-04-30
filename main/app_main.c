@@ -46,14 +46,22 @@ uint16_t ctrlReg = 0;
 uint16_t otpReg = 0;
 uint16_t otpAddr = 0;
 
+uint16_t RDAC_VAL = 0;
+
+uint16_t rdacVal = 0;
+
+SemaphoreHandle_t xSemaphore;
+
 AD5272_actions_t digipot_action = HOLD;
 uint16_t digipot_value = AD5272_RDAC_MID;
 
 bool artix7_send_flag = false;
+bool ad5272_update_flag = false;
 
 extern const char * temperature_names[5];
 extern const char * gpio_status_names[2];
 extern const char * serial_cmd_names[7];
+extern const char * device_state_names[2];
 
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task
@@ -126,7 +134,7 @@ static void tx_task(void *arg) {
     const static char *TAG = "U2T";
     esp_log_level_set(TAG, ESP_LOG_INFO);
     while (1) {
-        sendData(TAG, "XXXX");
+        //sendData(TAG, "XXXX");
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -138,14 +146,14 @@ static void tx_task(void *arg) {
 // We also must pop a known fixed number of crc32 bytes (8) off the end upon reception and compare with a local computation upon the data string
 static void rx_task(void * pvParameters) {
 
+    static const bool VERBOSE = false;
+
+    const int INCREMENT_AMOUNT = 16;
 
     const int MIN_RX_BYTES = 9;
     const int MAX_RX_BYTES = 17;
     const int CRC_SIZE = 8;
     uint8_t * data = (uint8_t*) malloc(RX_BUF_SIZE+1);
-
-    //const static char *TAG = "U2R";
-    //esp_log_level_set(TAG, ESP_LOG_INFO);
 
     // Parameters for U2Rx
     u2rxParams_t * params = (u2rxParams_t *) pvParameters;
@@ -153,21 +161,27 @@ static void rx_task(void * pvParameters) {
     uint8_t * data2 = params->data_buff;
     size_t data_buff_len = params->buff_len;
     bool * flag = params->flag;
+    bool * flag2 = params->flag2;
+    uint16_t * rdacVal = params->val;
     int delay_ms = params->delay_ms;
 
-    /*
-    // Typedefs
-    typedef enum serial_cmds_t {
-        NOP                      = 0x0,
-        TOGGLE_ON_OFF            = 0x2,  // Hex code for togglining device on/off (i.e. power to the array)
-        CHANGE_CHANNEL           = 0x4,  // Hex code for changing only channel with one transaction
-        CHANGE_COORD             = 0x8,  // Hex code for changing only coordinate with one transaction
-        CHANGE_VOLUME            = 0xA,  // Hex code for changing only volume with one transaction
-        CHANGE_COORD_AND_VOLUME  = 0xC,  // Hex code for changing volume, channel, and coordinate with one transaction
-        REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device
-    };
-    */
+    static bool deviceState = OFF; // upon reset, everything is off
+    static int localDigipotVal = AD5272_RDAC_MID;
+    static bool deviceAudioChan = SDOA;
+    static bool change = false;
 
+    int decimal = 0;
+    char hex[2] = {0x00, 0x00};
+
+ /*typedef enum serial_cmds_t {
+    NOP                      = 0x0,
+    TOGGLE_ON_OFF            = 0x2,  // Hex code for togglining device on/off (i.e. power to the array)
+    CHANGE_CHANNEL           = 0x4,  // Hex code for changing only channel with one transaction
+    CHANGE_COORD             = 0x8,  // Hex code for changing only coordinate with one transaction
+    CHANGE_VOLUME            = 0xA,  // Hex code for changing only volume with one transaction
+    CHANGE_COORD_AND_VOLUME  = 0xC,  // Hex code for changing volume, channel, and coordinate with one transaction
+    REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device. Not currently implemented
+};*/
     while (1) {
 
         const int rxBytes = uart_read_bytes(UART_NUM_2, data, RX_BUF_SIZE, 10 / portTICK_PERIOD_MS);
@@ -197,40 +211,152 @@ static void rx_task(void * pvParameters) {
             }
             // CRC check passed
             else {
+                if (VERBOSE) ESP_LOGI(TAG, "GOT COMMAND: %d", hex2dec(data[0]));
                 // Grab code byte (MSB)
-                switch(hex2dec(data[0])) {
+                switch(hex2dec(data[0])) { // 0x2
                     case(TOGGLE_ON_OFF):
                         // should drive gpio accordingly. Optionally tell microblaze to mute the steering peripheral.
+                        
+                        // tell microblaze to turn off, so that the spectrum LED goes off, option
+
+                        // For now, simply disable PWM_BUFF_EN, DISABLE GPIO_LOAD_SW_EN IN THAT ORDER when ON!
+                        switch(deviceState) {
+                            case(OFF):
+
+                                if (VERBOSE) ESP_LOGI(TAG, "TURNING DEVICE ON");
+
+                                // Should probably sweep the digipot down as well, or at least sw reset it
+                                gpio_set_level(LOAD_SWITCH_EN_PIN, 1);
+                                gpio_set_level(PWM_BUFF_EN_PIN, 1);
+                                deviceState = ON;
+                                break;
+
+                            case(ON):
+
+                                 if (VERBOSE) ESP_LOGI(TAG, "TURNING DEVICE OFF");
+
+                                gpio_set_level(PWM_BUFF_EN_PIN, 0);
+                                gpio_set_level(LOAD_SWITCH_EN_PIN, 0);
+                                deviceState = OFF;
+                                break;
+
+                            default:
+                                break;
+                        }
+
+                        // ENABLE load switch en and then PWM_BUFF_EN to turn on.
+                        // Also can mute the device and retain ADC configuration and running operation if communicate to artix7
+
                         break;
+
+                    // This function is complete 0x4
                     case(CHANGE_CHANNEL): // Could have like a subcase here, since both change channel and change coord need to signal to
                         // signal to the microblaze that we'd like to change channels
+                        data2[0] = CHANGE_CHANNEL << 4; // Shift two digit hex num over so it only occupies one space
+                        data2[1] = 0x00; // These bytes represent the elevation angle
+                        data2[2] = 0x00;
+                        data2[3] = 0x00;
+                        *flag = true;
+                        // Pass along command code, decode in microblaze
+
+                        if (VERBOSE) ESP_LOGI(TAG, "Changed audio channel from %d to %d!", deviceAudioChan, !deviceAudioChan);
+
+                        deviceAudioChan = !deviceAudioChan;
                         break;
-                    case(CHANGE_COORD):
+
+                    case(CHANGE_COORD): // 0x8
                         // signal to the microblaze that we'd like to change coordinates
                         // Stuff the new data into a shared struct type. SPI master task will register the change and communicate the data
                   
                         // may need to double up on transactions 
                         // since our data length is so wide
 
-                        data2[0] = concat_hex_chars(data[1], data[2]); // These bytes represent the azimuth angle
-                        data2[1] = concat_hex_chars(data[3], data[4]); // These bytes represent the elevation angle
+                        if (VERBOSE) ESP_LOGI(TAG, "CHANGING COORDINATE");
+                        
+                        /* Changed on 04/29 to have code occupy MSB, this bumps the data back!*/
+                        data2[0] = CHANGE_COORD << 4;// Pass along the code
+                        data2[1] = concat_hex_chars(data[1], data[2]); // These bytes represent the azimuth angle
+                        data2[2] = concat_hex_chars(data[3], data[4]); // These bytes represent the elevation angle
                         data2[3] = 0x00;
-                        data2[4] = 0x00;
                         *flag = true;
 
                         // Populate the buffer and set a flag so that the spi task recognizes
                         
                         break;
-                    case(CHANGE_VOLUME):
+
+                    case(CHANGE_VOLUME): // 0xA_[BB]BB [] == valid data
+
+                        if (VERBOSE) ESP_LOGI(TAG, "CHANGING VOLUME");
+
                         // increment or decrement the digipot according to a comparision to local static copy of pertinent var
+        
+                        //uint16_t value = data[1]; // this is the new desired value to set digipot 0-100
+                        // Extract the two hexadecimal characters from the data
+                        //char hex[2] = {data[1], data[2]};
+                        hex[0] = data[1];
+                        hex[1] = data[2];
+                        decimal = 0;
+
+                        // Convert each character to decimal
+                        for (int i = 0; i < 2; i++) {
+                            decimal = (decimal << 4) | hex2dec(hex[i]);
+                        }
+                        change = (localDigipotVal != decimal) ? true : false;
+                        ESP_LOGI(TAG, "OLD: %d, NEW: %d, CONV: %d", localDigipotVal, decimal, PCT_TO_INV_CNT(decimal));
+                        
+                        
+                        //xSemaphoreTake(xSemaphore, portMAX_DELAY);
+                        //RDAC_VAL = PCT_TO_INV_CNT(decimal);  // convert the range 0 to 100 to 1023 to 0
+                        //xSemaphoreGive(xSemaphore);
+
+                        *flag2 = true;
+
+                        // set flag for i2c, pass the above data to i2c rdac reg
+                        
                         break;
-                    case(CHANGE_COORD_AND_VOLUME):
-                        // increment or decrement the digipot, and also send new coordinates to MATLAB
+                    
+
+                    case(CHANGE_COORD_AND_VOLUME): // 0xA_[BB]BB [] == valid data
+                        // increment or decrement the digipot, and also send new coordinates to 
+
+                            // Same stuff as in change coord alone. Gonna omit this for now as it is least used case
+                            if (VERBOSE) ESP_LOGI(TAG, "CHANGING COORDINATE");
+                        
+                            /* Changed on 04/29 to have code occupy MSB, this bumps the data back!*/
+                            data2[0] = CHANGE_COORD << 4;// Pass along the code
+                            data2[1] = concat_hex_chars(data[1], data[2]); // These bytes represent the azimuth angle
+                            data2[2] = concat_hex_chars(data[3], data[4]); // These bytes represent the elevation angle
+                            data2[3] = 0x00;
+
+                            if (VERBOSE) ESP_LOGI(TAG, "CHANGING VOLUME");
+
+                            hex[0] = data[1];
+                            hex[1] = data[2];
+
+                            // Convert each character to decimal
+                            for (int i = 0; i < 2; i++) {
+                                decimal = (decimal << 4) | hex2dec(hex[i]);
+                            }
+                            change = (localDigipotVal != decimal) ? true : false;
+                            ESP_LOGI(TAG, "OLD: %d, NEW: %d, CONV: %d", localDigipotVal, decimal, PCT_TO_INV_CNT(decimal));
+                            //*rdacVal = PCT_TO_INV_CNT(decimal);  // convert the range 0 to 100 to 1023 to 0
+
+
+
+                            // set flag and pass value to i2c reg
+
+                            *flag2 = true;
+                                          // set i2c flag
+                            *flag = true; // set spi flag 
+
+                        break;
+
+                    case(REQUEST_INFO): 
+                        // Not yet implemented. If a crc fail occurs, set a flag to rerequest new data
                         break;
                     default:
                         break;
                 }
-                ESP_LOGI(TAG, "GOT COMMAND: %d", hex2dec(data[0]));
             }
         }
     }
@@ -254,6 +380,8 @@ static void i2c_task(void * pvParameters) {
     const char * TAG = params->TAG;
     digipot_status_t * status = params->status;
 
+    bool * updateFlag = params->updateFlag;
+
     uint16_t * otpReg = status->rdacReg;
     uint16_t * rdacReg = status->ctrlReg;
     uint16_t * ctrlReg = status->otpReg;
@@ -263,11 +391,12 @@ static void i2c_task(void * pvParameters) {
     AD5272_actions_t * action = ctrl->action;
     uint16_t * wiperVal = ctrl->wiperValue; // dereference locally to change value
 
+    uint16_t * val = params->val;
+
     int delay_ms = params->delay_ms;
 
     // factor this to 1. take params
     //                2. act on the received value from uart2/bluetooth
-
 
     ESP_ERROR_CHECK(app_i2c_master_init());
     ESP_LOGI(TAG, "I2C initialized successfully.");
@@ -292,19 +421,42 @@ static void i2c_task(void * pvParameters) {
             }
         }
 
+        if(*updateFlag) {
+            ESP_LOGI(TAG, "Unlocking RDAC");
+            ret = ad5272_ctrl_reg_write(1 << AD5272_RDAC_WEN);
+            if (ret != ESP_OK) {
+                ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            }
+            //xSemaphoreTake(xSemaphore, portMAX_DELAY);
+            // need to actually get the value here
+            ESP_LOGI(TAG, "Writing 0x%08X...", RDAC_VAL);
+            ret = ad5272_rdac_reg_write(RDAC_VAL);
+            if (ret != ESP_OK) {
+                ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            }
+            //xSemaphoreGive(xSemaphore);
+            ESP_LOGI(TAG, "Locking RDAC");
+            ret = ad5272_ctrl_reg_write(0x0);
+            if (ret != ESP_OK) {
+                ESP_LOGI(TAG, "NACK OR BUS BUSY");
+            }
+            *updateFlag = false;
+        }
 
-        if (count == 3) {
+
+        /*if (count == 3) {
             ESP_LOGI(TAG, "Unlocking RDAC");
             ret = ad5272_ctrl_reg_write(1 << AD5272_RDAC_WEN);
             if (ret != ESP_OK) {
                 ESP_LOGI(TAG, "NACK OR BUS BUSY");
             }
             ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MID / 16);
-            ret = ad5272_rdac_reg_write(/*AD5272_RDAC_MAX*/AD5272_RDAC_MID / 16);
+            ret = ad5272_rdac_reg_write(AD5272_RDAC_MID / 16);
             if (ret != ESP_OK) {
                 ESP_LOGI(TAG, "NACK OR BUS BUSY");
             }
-        }
+        }*/
+
         //else if (count == 4) {
             //ESP_LOGI(TAG, "Writing 0x%X...", AD5272_RDAC_MID);
             //ret = ad5272_rdac_reg_write(AD5272_RDAC_MID);
@@ -323,14 +475,14 @@ static void i2c_task(void * pvParameters) {
             //   }
             //}
         //}
-        else if (count == 128) {
-            //ret = ad5272_rdac_reg_write(20);
-            ESP_LOGI(TAG, "Locking RDAC");
-            ret = ad5272_ctrl_reg_write(0x0);
-            if (ret != ESP_OK) {
-                ESP_LOGI(TAG, "NACK OR BUS BUSY");
-            }
-        }
+        //else if (count == 128) {
+        //    //ret = ad5272_rdac_reg_write(20);
+        //    ESP_LOGI(TAG, "Locking RDAC");
+        //    ret = ad5272_ctrl_reg_write(0x0);
+        //    if (ret != ESP_OK) {
+        //        ESP_LOGI(TAG, "NACK OR BUS BUSY");
+        //    }
+        //}
         vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
     
@@ -386,6 +538,8 @@ static void spi_task(void * pvParameters) {
 
 void app_main(void) {
 
+    static const bool VERBOSE = false;
+    
     const static char *TAG = "APP";
     esp_err_t ret;
 
@@ -399,6 +553,8 @@ void app_main(void) {
         .data_buff = &spi_tx_data, // Data comes from U2Rx, and goes to SPI master task, then sent to artix7
         .buff_len = 4,
         .flag = &artix7_send_flag,
+        .flag2 = &ad5272_update_flag,
+        .val = &rdacVal,
         .delay_ms = 10
     };
 
@@ -466,6 +622,8 @@ void app_main(void) {
         .TAG = "MI2C",
         .status = &digipotStatus,
         .ctrl = &digipotCtrl,
+        .updateFlag = &ad5272_update_flag,
+        .val = &rdacVal,
         .delay_ms = 10
     };
     
@@ -473,8 +631,8 @@ void app_main(void) {
 
     // add dedicated gpio task?
 
-    xTaskCreate(rx_task,  "uart_rx_task", 1024*4, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
-    xTaskCreate(tx_task,  "uart_tx_task", 1024*2, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
+    xTaskCreate(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
+    xTaskCreate(tx_task,  "uart_tx_task", 1024*4, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
     xTaskCreate(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL);
@@ -488,49 +646,29 @@ void app_main(void) {
         if (count == 2) { 
             // Drive this pin low if MCU needs to shut down the array for whatever reason
             // ESP32 should relay back to remote if requested channel is not enabled, and not allow switching of the channel
-            ret = gpio_set_level(PWM_BUFF_EN_PIN, 1);
-            gpio_set_level(LOAD_SWITCH_EN_PIN, 1);
+            gpio_set_level(PWM_BUFF_EN_PIN, 0); // These are driven in the u2rx task according to input commands received
+            gpio_set_level(LOAD_SWITCH_EN_PIN, 0);
 
-            // ESP32 on the controller is responsible for ensuring that in no circumstances
-            // does PWM output begin with LOAD_SWITCH_EN driven low. This is accomplished
-            // by holding PWM_BUFF_EN low until an appropriate condition is met. The FPGA
-            // has a similar control signal which is combined with this MCU signal; they must
-            // BOTH be high for PWM output to begin. IF PWM OUTPUT BEGINS WITH LOAD_SWITCH_EN
-            // DRIVEN LOW (i.e DISABLED/OFF!), THEN THE PWM WILL BACK BIAS THE CLAMP DIODES
-            // IN THE MIC4127 GATE DRIVERS, CAUSING A FAINT INCESSANT 40KHZ TONE.
-
-            // SEQUENCE FOR OFF:
-            // PWM_BUFF_EN    <-- LOW
-            // LOAD_SWITCH_EN <-- LOW
-
-            // SEQUENCE FOR ON:
-            // LOAD_SWITCH_EN <-- HIGH
-            // PWM_BUFF_EN    <-- HIGH
-
-            // In simple terms:
-            // When PWM is happening, LOAD_SWITCH_EN must be HIGH
-            // For PWM to actually reach the output, PWM_BUFF_EN must be HIGH, and the FPGA must agree
-            // But in order for the ESP32 to drive PWM_BUFF_EN high, one of either of SDOA/SDOB jacks must be (HIGH?)
-            //      and in addition, user must signal an on/off toggle request via the remote
-
-            // PWM_BUFF_EN should only be driven high given that load switch enable is enabled,
-            // and that either of the two channels is plugged in (sdoa/sdob jack switch),
-            // and that user requests the device to be enabled.
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "MCU PWM enable has been set. FPGA must follow suit.");
-            }
-            else {
-                ESP_LOGI(TAG, "Issue driving GPIO %d. MCU PWM enable has not been set.", PWM_BUFF_EN_PIN);
+            if (VERBOSE) {
+                if (ret == ESP_OK) {
+                    ESP_LOGI(TAG, "MCU PWM enable has been set. FPGA must follow suit.");
+                }
+                else {
+                    ESP_LOGI(TAG, "Issue driving GPIO %d. MCU PWM enable has not been set.", PWM_BUFF_EN_PIN);
+                }
             }
         } 
         
         get_drive_temp(&ntc_temp, vntc_filt);
-        ESP_LOGI(TAG, "TEMP: %s", temperature_names[ntc_temp]);
-        ESP_LOGI(TAG, "AUX: %s", gpio_status_names[gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA channel analog signal input
-        ESP_LOGI(TAG, "ECM: %s", gpio_status_names[gpio_get_level(ECM_SW_PIN)]);
 
+        if (VERBOSE) {
+            ESP_LOGI(TAG, "TEMP: %s", temperature_names[ntc_temp]);
+            ESP_LOGI(TAG, "AUX: %s", gpio_status_names[gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA channel analog signal input
+            ESP_LOGI(TAG, "ECM: %s", gpio_status_names[gpio_get_level(ECM_SW_PIN)]);    
+        }
+            
         count++;
-        ESP_ERROR_CHECK(app_heartbeat_toggle());
+        app_heartbeat_toggle();
 
         //vTaskDelay(pdMS_TO_TICKS(1000));
         vTaskDelay(HEARTBEAT_BLINK_PERIOD_MS / portTICK_PERIOD_MS);

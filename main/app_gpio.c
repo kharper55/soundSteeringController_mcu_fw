@@ -5,6 +5,11 @@ const char * gpio_status_names[2] = {
     "HIGH"
 };
 
+const char * device_state_names[2] = {
+    "OFF",
+    "ON"
+};
+
 esp_err_t app_gpio_init(void) {
     // GP OUTPUTS
     gpio_reset_pin(HEARTBEAT_LED_PIN);

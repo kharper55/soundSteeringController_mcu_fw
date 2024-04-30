@@ -37,6 +37,18 @@ typedef enum {
     HIGH
 } gpio_status_t;
 
+typedef enum {
+    OFF,
+    ON
+} device_states_t;
+
+typedef enum {
+    SDOA,
+    SDOB
+} device_audio_channels_t;
+
+extern const char * device_state_names[2];
+
 // User functions
 esp_err_t app_gpio_init(void);
 esp_err_t app_heartbeat_toggle(void);

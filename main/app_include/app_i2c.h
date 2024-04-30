@@ -28,6 +28,7 @@ extern "C" {
 
 // Macros
 #define AD5272_CNT_TO_OHM(UPR8, LWR8) (((UPR8 << 8 | LWR8) / 1023.0) * 50000 + 50) /* Using 50kOhm variant. Nominal minimum wiper resistance is in range 35-70 ohms, so this is added to the value */
+#define PCT_TO_INV_CNT(PCT)            (AD5272_RDAC_MAX - (PCT * AD5272_RDAC_MAX) / 100)
 
 // Typedefs
 // AD5272 Commands
@@ -85,6 +86,8 @@ typedef struct {
      char * TAG;
      digipot_status_t * status;    // Digipot status contains all register values
      digipot_ctrl_t * ctrl;        // Action to be performed and value to work with
+     bool * updateFlag;
+     uint16_t * val;
      int delay_ms;
 } i2cMasterParams_t;
 
