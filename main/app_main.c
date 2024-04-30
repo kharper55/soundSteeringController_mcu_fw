@@ -48,8 +48,6 @@ uint16_t otpAddr = 0;
 
 uint16_t RDAC_VAL = 0;
 
-uint16_t rdacVal = 0;
-
 SemaphoreHandle_t xSemaphore;
 
 AD5272_actions_t digipot_action = HOLD;
@@ -306,7 +304,10 @@ static void rx_task(void * pvParameters) {
                         
                         
                         //xSemaphoreTake(xSemaphore, portMAX_DELAY);
-                        //RDAC_VAL = PCT_TO_INV_CNT(decimal);  // convert the range 0 to 100 to 1023 to 0
+                        if (xSemaphoreTake(xSemaphore, 10) == pdTRUE) {
+                            RDAC_VAL = PCT_TO_INV_CNT(decimal);  // convert the range 0 to 100 to 1023 to 0
+                            xSemaphoreGive(xSemaphore);
+                        }
                         //xSemaphoreGive(xSemaphore);
 
                         *flag2 = true;
@@ -339,8 +340,10 @@ static void rx_task(void * pvParameters) {
                             }
                             change = (localDigipotVal != decimal) ? true : false;
                             ESP_LOGI(TAG, "OLD: %d, NEW: %d, CONV: %d", localDigipotVal, decimal, PCT_TO_INV_CNT(decimal));
-                            //*rdacVal = PCT_TO_INV_CNT(decimal);  // convert the range 0 to 100 to 1023 to 0
-
+                            if (xSemaphoreTake(xSemaphore, 10) == pdTRUE) {
+                                RDAC_VAL = PCT_TO_INV_CNT(decimal);  // convert the range 0 to 100 to 1023 to 0
+                                xSemaphoreGive(xSemaphore);
+                            }
 
 
                             // set flag and pass value to i2c reg
@@ -429,8 +432,13 @@ static void i2c_task(void * pvParameters) {
             }
             //xSemaphoreTake(xSemaphore, portMAX_DELAY);
             // need to actually get the value here
-            ESP_LOGI(TAG, "Writing 0x%08X...", RDAC_VAL);
-            ret = ad5272_rdac_reg_write(RDAC_VAL);
+            if (xSemaphoreTake(xSemaphore, 10) == pdTRUE) {
+                ESP_LOGI(TAG, "Writing 0x%08X...", RDAC_VAL);
+                if (RDAC_VAL > 12) {
+                    ret = ad5272_rdac_reg_write(RDAC_VAL);
+                }
+                xSemaphoreGive(xSemaphore);
+            }
             if (ret != ESP_OK) {
                 ESP_LOGI(TAG, "NACK OR BUS BUSY");
             }
@@ -554,7 +562,7 @@ void app_main(void) {
         .buff_len = 4,
         .flag = &artix7_send_flag,
         .flag2 = &ad5272_update_flag,
-        .val = &rdacVal,
+        //.val = &rdacVal,
         .delay_ms = 10
     };
 
@@ -623,13 +631,15 @@ void app_main(void) {
         .status = &digipotStatus,
         .ctrl = &digipotCtrl,
         .updateFlag = &ad5272_update_flag,
-        .val = &rdacVal,
+        //.val = &rdacVal,
         .delay_ms = 10
     };
     
     // ===== Application Task Declarations ===== //
 
     // add dedicated gpio task?
+
+    xSemaphore = xSemaphoreCreateMutex();
 
     xTaskCreate(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
     xTaskCreate(tx_task,  "uart_tx_task", 1024*4, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
