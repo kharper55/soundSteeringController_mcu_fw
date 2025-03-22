@@ -1,4 +1,13 @@
-#include "app_include/app_uart2.h"
+/*===================================================================================================
+    File: app_uart2.c
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function and global definitions for UART2 peripheral FreeRTOS tasks.
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
+#include "app_include/app_uart2.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
 const char * serial_cmd_names[7] = {
    "NOP",

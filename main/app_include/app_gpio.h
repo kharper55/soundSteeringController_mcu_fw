@@ -1,3 +1,13 @@
+/*===================================================================================================
+    File: app_gpio.h
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function prototypes, constants, preprocessor defs/macros for GPIO peripheral.
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
+
 #ifndef APP_GPIO_H
 #define APP_GPIO_H
 
@@ -6,7 +16,7 @@ extern "C" {
 #endif
 
 // Includes
-#include "driver/gpio.h"
+#include "driver/gpio.h" // IDF provided GPIO driver interface
 
 // Pin Defines
 

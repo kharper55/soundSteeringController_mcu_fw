@@ -1,3 +1,12 @@
+/*===================================================================================================
+    File: app_uart2.h
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function prototypes, constants, preprocessor defs/macros for UART2 peripheral.
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
 #ifndef APP_UART2_H
 #define APP_UART2_H
 
@@ -13,9 +22,9 @@ This can be changed via menuconfig. UART0 is configured to work with the on boar
 */
 
 // Includes 
-#include "driver/uart.h"
+#include "driver/uart.h" // IDF provided driver
 #include "app_gpio.h"    // gpio nums
-#include "app_utility.h" // string.h
+#include "app_utility.h" // string.h... do we really need...
 
 // Pin Defines
 #define U2TXD_PIN               GPIO_NUM_17

@@ -1,3 +1,12 @@
+/*===================================================================================================
+    File: app_adc.h
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function prototypes, constants, preprocessor defs/macros for ADC peripheral
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
 #ifndef APP_ADC_H
 #define APP_ADC_H
 
@@ -6,11 +15,11 @@ extern "C" {
 #endif
 
 // Includes 
-#include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
-#include "esp_adc/adc_continuous.h"
-#include "app_utility.h"
+#include "esp_adc/adc_oneshot.h"        // IDF build tools provide standard interfaces for ADC drivers
+#include "esp_adc/adc_cali.h"           // Calibration routines to compensate for measurement nonidealities
+#include "esp_adc/adc_cali_scheme.h"    // See above.
+#include "esp_adc/adc_continuous.h"     // IDF interface for continuous mode ADC driver
+#include "app_utility.h"                // Various function prototypes, constants, preprocessor defs/macros, typedefs
 
 // Pin Defines 
 #define VDRIVE_BUFF_PIN         GPIO_NUM_34 // ADC16
@@ -35,6 +44,9 @@ extern "C" {
 // Macros
 
 // Typedefs
+
+// General parameters for a circular buffer averaging filter accepting ADC
+// counts as an input (see 'adc_filter(...)' definition)
 typedef struct {
     int count;
     int sum;
@@ -43,6 +55,7 @@ typedef struct {
     bool bufferFullFlag;
 } adc_filter_t;
 
+// General parameters for the ADC FreeRTOS task (for oneShot operation)
 typedef struct {
     char * TAG;
     adc_oneshot_unit_handle_t * handle;
@@ -57,6 +70,8 @@ typedef struct {
     int * vfilt;
 } adcOneshotParams_t;
 
+// An enum-like type giving a more qualitative indication of the temperature measurement
+// from the ADC peripheral
 typedef enum {
     TEMP_UNKNOWN,
     TEMP_COLD,
@@ -65,6 +80,7 @@ typedef enum {
     TEMP_HOT
 } adc_temp_t;
 
+// Descriptive string names for the adc_temp_t values
 extern const char * temperature_names[5];
 
 // User functions

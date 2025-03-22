@@ -1,4 +1,13 @@
-#include "app_include/app_i2s.h"
+/*===================================================================================================
+    File: app_i2s.c
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function definitions for the I2S (digital audio protocol) hardware peripheral. 
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
+#include "app_include/app_i2s.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
 esp_err_t app_i2s_init(void) {
     // i2s output as gpio for now

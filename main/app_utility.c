@@ -1,4 +1,14 @@
-#include "app_include/app_utility.h"
+/*===================================================================================================
+    File: app_utility.c
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Various function definitions which are used generally and not for any one processor 
+             peripheral in particular.
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
+#include "app_include/app_utility.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
 /*---------------------------------------------------------------
     Basic CRC32 Implementation (Little Endian)

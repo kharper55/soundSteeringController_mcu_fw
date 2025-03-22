@@ -1,3 +1,13 @@
+/*===================================================================================================
+    File: app_utility.h
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Various function prototypes, constants, preprocessor defs/macros which are used
+             generally and not for any one processor peripheral in particular.
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
 #ifndef APP_UTILITY_H
 #define APP_UTILITY_H
 
@@ -9,6 +19,7 @@ extern "C" {
 #include <stdio.h>
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_mac.h" // TOOL CHANGE INCLUSION 03/10/2025
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"

@@ -1,5 +1,15 @@
-#include "app_include/app_adc.h"
+/*===================================================================================================
+    File: app_adc.c
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function and global definitions for ADC peripheral FreeRTOS tasks.
 
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
+#include "app_include/app_adc.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
+
+// Descriptive string names for the adc_temp_t values
 const char * temperature_names[5] = {
     "UNKOWN",
     "COLD",
@@ -91,13 +101,16 @@ float adc_filter(int value, adc_filter_t * filterObject) {
     int denominator = 1;
     int temp = 0;
 
+    // Check if the buffer is full
     if (filterObject->count < filterObject->buff_len) {
+        // ... hmm dont understand below conditional. maybe the struct member name is off (bufferFullFlag and count < buff_len?)
         if (filterObject->bufferFullFlag) temp = filterObject->buff[filterObject->count]; // Get the current value in the circular buffer about to be overwritten...
-        filterObject->buff[filterObject->count] = value;   
+        filterObject->buff[filterObject->count] = value;   // Replace the value at the index where temp was
         filterObject->sum += (filterObject->buff[filterObject->count] - temp); // Add to the running sum of circular buffer entries the difference between the newest value added and the value that was previously in its position, so that additions dont need to be recompleted.
-        filterObject->count++;
+        filterObject->count++; // increment the count
     }
 
+    // The buffer is full... Wrap the count and start replacing values...
     if (filterObject->count == filterObject->buff_len) {
         if (!filterObject->bufferFullFlag) filterObject->bufferFullFlag = true;
         filterObject->count = 0;

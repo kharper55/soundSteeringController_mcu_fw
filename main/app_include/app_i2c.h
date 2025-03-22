@@ -1,3 +1,12 @@
+/*===================================================================================================
+    File: app_i2c.h
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function prototypes, constants, preprocessor defs/macros for I2C peripheral
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
 #ifndef APP_I2C_H
 #define APP_I2C_H
 
@@ -6,7 +15,7 @@ extern "C" {
 #endif
 
 // Includes
-#include "driver/i2c.h"
+#include "driver/i2c.h" // IDF provided driver interface
 
 // Pin Defines
 #define I2C_SDA_PIN             GPIO_NUM_21

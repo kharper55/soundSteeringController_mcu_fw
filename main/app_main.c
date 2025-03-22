@@ -1,25 +1,35 @@
 /*===================================================================================================
     Ultrasonic Drive Controller - Code to implement controller for phased array in order to demonstrate
                                   the phenomena of "sound from ultrasound".
-    Created By Kevin Harper, 01-08-2024 
-    
+
+    Created By Kevin Harper, 01-08-2024
+
+    Update 03/10/2025:
+        - plan to work on BT + I2S->FPGA i/f drivers
+        - simple laptop + phone? interface... no just laptop - network + BT? can we just stream the audio via network as opp to BT... then no TDMA for single antenna
+        - FPGA i2s integration to data path.... driver, PCM->PWM counts???...
+        - general code clean up and commenting needed. Rearrange prototype and def for functions so main at top
+
     Written using ESP-IDF v5.1.1 API
 //==================================================================================================*/
 
-// Work on I2C driver
+// TOOL CHANGE INCLUSIONS 03/10/2025 (see "app_utility")
+
+// Work on I2C ANDDDD BT drivers... open circuit the uart2 pins? boot time config?
 // Work on continuous mode ADC driver
 // Work on all comms. Especially from remote to controller...
 // We need some encoding of the data... data to be sent is from 2 encoders (angles) and 2 pots (volume, other)
+// ^ no clue what i meant by this last line 03/10
 
-#include "app_include/app_utility.h"    // CRC32 implementation + other headers
-#include "app_include/app_uart2.h"
-#include "app_include/app_adc.h"
-#include "app_include/app_gpio.h"
-#include "app_include/app_spi.h"
-#include "app_include/app_i2c.h"
-#include "app_include/app_i2s.h"   
-#include "app_include/app_bluetooth.h" 
-#include "app_include/app_timer.h"
+#include "app_include/app_utility.h"    // CRC32 implementation + other header dependents
+#include "app_include/app_uart2.h"      // UART comms to remote
+#include "app_include/app_adc.h"        // ESP32 ADC peripheral driver interface functions
+#include "app_include/app_gpio.h"       // GPIO function handles
+#include "app_include/app_spi.h"        // SPI function handles (link to Artix7 FPGA)
+#include "app_include/app_i2c.h"        // I2C function handles and interface defintion for digipot
+#include "app_include/app_i2s.h"        // !!!
+#include "app_include/app_bluetooth.h"  // !!!
+#include "app_include/app_timer.h"      // Not actually utilized currently, port from remote source code
 
 //NOTE: NEED TO PORT IN CHANGES TO ADC TASKS
 static int vdrive_raw = 0;
@@ -128,7 +138,8 @@ static void adc_task(void * pvParameters) {
     UART2 TX FreeRTOS task
 ---------------------------------------------------------------*/
 static void tx_task(void *arg) {
-    // Work is yet to be done here to complete the communication circle from remote to controller
+    // Work is yet to be done here to complete the communication circle
+    // from remote to controller
     const static char *TAG = "U2T";
     esp_log_level_set(TAG, ESP_LOG_INFO);
     while (1) {
@@ -171,15 +182,15 @@ static void rx_task(void * pvParameters) {
     int decimal = 0;
     char hex[2] = {0x00, 0x00};
 
- /*typedef enum serial_cmds_t {
-    NOP                      = 0x0,
-    TOGGLE_ON_OFF            = 0x2,  // Hex code for togglining device on/off (i.e. power to the array)
-    CHANGE_CHANNEL           = 0x4,  // Hex code for changing only channel with one transaction
-    CHANGE_COORD             = 0x8,  // Hex code for changing only coordinate with one transaction
-    CHANGE_VOLUME            = 0xA,  // Hex code for changing only volume with one transaction
-    CHANGE_COORD_AND_VOLUME  = 0xC,  // Hex code for changing volume, channel, and coordinate with one transaction
-    REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device. Not currently implemented
-};*/
+    /*typedef enum serial_cmds_t {
+        NOP                      = 0x0,
+        TOGGLE_ON_OFF            = 0x2,  // Hex code for togglining device on/off (i.e. power to the array)
+        CHANGE_CHANNEL           = 0x4,  // Hex code for changing only channel with one transaction
+        CHANGE_COORD             = 0x8,  // Hex code for changing only coordinate with one transaction
+        CHANGE_VOLUME            = 0xA,  // Hex code for changing only volume with one transaction
+        CHANGE_COORD_AND_VOLUME  = 0xC,  // Hex code for changing volume, channel, and coordinate with one transaction
+        REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device. Not currently implemented
+    };*/
     while (1) {
 
         const int rxBytes = uart_read_bytes(UART_NUM_2, data, RX_BUF_SIZE, 10 / portTICK_PERIOD_MS);
@@ -355,8 +366,10 @@ static void rx_task(void * pvParameters) {
                         break;
 
                     case(REQUEST_INFO): 
-                        // Not yet implemented. If a crc fail occurs, set a flag to rerequest new data
+                        // Not yet implemented. 
+                        // If a crc fail occurs, set a flag to rerequest new data
                         break;
+
                     default:
                         break;
                 }
@@ -639,10 +652,11 @@ void app_main(void) {
 
     // add dedicated gpio task?
 
-    xSemaphore = xSemaphoreCreateMutex();
-
+    xSemaphore = xSemaphoreCreateMutex(); 
+    
+    // how to select core...?
     xTaskCreate(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
-    xTaskCreate(tx_task,  "uart_tx_task", 1024*4, NULL, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
+    xTaskCreate(tx_task,  "uart_tx_task", 1024*4, NULL /*TBD: (void *)&u2txParams*/, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
     xTaskCreate(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL);
     xTaskCreate(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL);

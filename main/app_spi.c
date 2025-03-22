@@ -1,4 +1,13 @@
-#include "app_include/app_spi.h"
+/*===================================================================================================
+    File: app_spi.c
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function and global definitions for SPI peripheral FreeRTOS tasks.
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
+#include "app_include/app_spi.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
 esp_err_t app_spi_init(spi_device_handle_t * spi) {
 

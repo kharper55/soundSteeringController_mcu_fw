@@ -1,3 +1,12 @@
+/*===================================================================================================
+    File: app_spi.h
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function prototypes, constants, preprocessor defs/macros for SPI peripheral
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
+
 #ifndef APP_SPI_H
 #define APP_SPI_H
 
@@ -6,10 +15,10 @@ extern "C" {
 #endif
 
 // Includes
-#include "driver/spi_master.h"
-#include "esp_heap_caps.h"
-#include "app_gpio.h"
-#include "app_utility.h" // for memset
+#include "driver/spi_master.h" // IDF provided driver interface
+#include "esp_heap_caps.h"     // Heap capacity limit definition per architecture/device
+#include "app_gpio.h"          // Function prototypes, constants, preprocessor defs/macros, typedefs
+#include "app_utility.h"       // Various function prototypes, constants, preprocessor defs/macros, typedefs (memset())
 
 // Pin Defines (SPI PORT "HSPI" TO ARTIX-7)
 #define SPI_CS_PIN              GPIO_NUM_15 // HSPICS0

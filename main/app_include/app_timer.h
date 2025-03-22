@@ -1,10 +1,11 @@
-/**
- * @file app_adc.h
- * @brief application specific definitions for UART2 operation on remote PCB for sound steering project.
- *        This UART port is intended for use only in development and is to be replaced with a wireless BT link.
- *        (courtesy of PRO_CPU :P)
- * 
- */
+/*===================================================================================================
+    File: app_timer.h
+    Author: Kevin Harper
+    Date: 01/2024
+    Details: Function prototypes, constants, preprocessor defs/macros for timer peripheral.
+
+    Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
+//==================================================================================================*/
 
 #ifndef APP_TIMER_H
 #define APP_TIMER_H
@@ -13,15 +14,16 @@
 extern "C" {
 #endif
 
-// --------------- Includes --------------- //
-#include "driver/gptimer.h"
-#include "app_utility.h"
+// Includes
+#include "driver/gptimer.h" // IDF provided driver interface
+#include "app_utility.h"    // Various unction prototypes, constants, preprocessor defs/macros, typedefs
 
+// Macros
 #define GPTIMER_BASE_TICK_FREQ_HZ (uint32_t)(1 * 1000 * 1000) // Set 1MHz base resolution
 #define GPTIMER_MS_TO_TICKS(X)    (uint32_t)((X / 1000.0) * GPTIMER_BASE_TICK_FREQ_HZ)
 #define GPTIMER_TICKS_TO_MS(X)    (uint32_t)((X * 1000.0) / GPTIMER_BASE_TICK_FREQ_HZ)
 
-//typedef void (*gptimer_callback_t) (void *);
+//typedef void (*gptimer_callback_t) (void *); // void pointer typedef?
 
 typedef struct {
     gptimer_handle_t * timerHandle;
