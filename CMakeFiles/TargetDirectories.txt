@@ -120,6 +120,12 @@ C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/s
 C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/library/CMakeFiles/install.dir
 C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/library/CMakeFiles/install/local.dir
 C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/library/CMakeFiles/install/strip.dir
+C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/pkgconfig/CMakeFiles/edit_cache.dir
+C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/pkgconfig/CMakeFiles/rebuild_cache.dir
+C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/pkgconfig/CMakeFiles/list_install_components.dir
+C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/pkgconfig/CMakeFiles/install.dir
+C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/pkgconfig/CMakeFiles/install/local.dir
+C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/pkgconfig/CMakeFiles/install/strip.dir
 C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/esp_app_format/CMakeFiles/__idf_esp_app_format.dir
 C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/esp_app_format/CMakeFiles/edit_cache.dir
 C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/esp_app_format/CMakeFiles/rebuild_cache.dir

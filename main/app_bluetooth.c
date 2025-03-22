@@ -9,4 +9,11 @@
 
 #include "app_include/app_bluetooth.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
+/* -------
+
+-------  */
+esp_err_t app_bt_init(void) {
+    return true;
+}
+
 /*========================================= END FILE ============================================*/
