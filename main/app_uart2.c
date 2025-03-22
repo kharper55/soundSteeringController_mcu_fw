@@ -43,3 +43,5 @@ int sendData(const char* logName, const char* data) {
     ESP_LOGI(logName, "Wrote %d bytes: '%s'", txBytes, data);
     return txBytes;
 }
+
+/*========================================= END FILE ============================================*/

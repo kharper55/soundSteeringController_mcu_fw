@@ -96,3 +96,5 @@ void get_drive_temp(adc_temp_t * temperature, int vmeas);
 #endif
 
 #endif  // APP_ADC_H
+
+/*========================================= END FILE ============================================*/

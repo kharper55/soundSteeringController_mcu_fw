@@ -70,3 +70,5 @@ extern const char * gpio_status_names[2];
 #endif
 
 #endif  // APP_GPIO_H
+
+/*========================================= END FILE ============================================*/

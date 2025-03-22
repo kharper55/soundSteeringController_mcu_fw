@@ -59,3 +59,5 @@ esp_err_t spi_master_start_transaction(spi_device_handle_t spi, uint8_t data_tx[
 #endif
 
 #endif  // APP_I2C_H
+
+/*========================================= END FILE ============================================*/

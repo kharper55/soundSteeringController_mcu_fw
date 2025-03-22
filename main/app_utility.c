@@ -43,3 +43,5 @@ uint8_t concat_hex_chars(char high, char low) {
     // Combine the high and low nibbles into a single byte
     return (high_val << 4) | low_val;
 }
+
+/*========================================= END FILE ============================================*/

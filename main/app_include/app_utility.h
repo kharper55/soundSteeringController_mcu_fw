@@ -52,3 +52,5 @@ uint8_t concat_hex_chars(char high, char low);
 #endif
 
 #endif  // APP_UTILITY_H
+
+/*========================================= END FILE ============================================*/

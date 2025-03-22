@@ -156,3 +156,5 @@ void get_drive_temp(adc_temp_t * temperature, int vmeas) {
 
     *tempStateHandle = tempState;
 }
+
+/*========================================= END FILE ============================================*/

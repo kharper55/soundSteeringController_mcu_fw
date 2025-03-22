@@ -39,3 +39,5 @@ esp_err_t app_reconfigTimerAlarm(gptimer_handle_t * timerHandle, gptimer_state_t
 #endif
 
 #endif  // APP_TIMER_H
+
+/*========================================= END FILE ============================================*/

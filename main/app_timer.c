@@ -105,3 +105,4 @@ esp_err_t app_getTimerCount(gptimer_handle_t * timerHandle, uint64_t * value) {
     return ret;
 }
 
+/*========================================= END FILE ============================================*/

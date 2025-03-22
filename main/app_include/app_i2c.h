@@ -119,11 +119,10 @@ esp_err_t ad5272_sw_shutdown(void);
 
 #endif  // APP_I2C_H
 
-
+/*========================================= END FILE ============================================*/
 
 /*
 Notes on AD5272
-
 
 Command 3 in Table 12 programs the contents of the RDAC register to memory.
 The first address to be programmed is Location 0x01, see Table
@@ -142,7 +141,6 @@ wiper memory location can be read back using Command 6 in
 Table 12. This can be used to monitor the spare memory status of
 the 50-TP memory block
 
-
 AD5272 OPCODES
 
 DC == "DONT CARE"
@@ -159,9 +157,7 @@ All cycles involve 2 bytes R/W
 0x08 << 2 | DC               - Read contents of the control reg CTRL[10:0] = ["000000"&C3|C2|C1|C0]
 0x09 << 2 | 1 BIT DATA       - Software shutdown depending on level of the 1 data bit (shutdown if bit == 1)
 
-
 RDAC CONTROL REGISTER BIT DESCRIPTIONS
-
 
 C0 - 50-TP PROGRAM ENABLE
      0 - disabled (default)

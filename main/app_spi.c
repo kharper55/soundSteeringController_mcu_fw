@@ -77,3 +77,5 @@ esp_err_t spi_master_start_transaction(spi_device_handle_t spi, uint8_t data_tx[
     assert(ret==ESP_OK);              //Should have had no issues.
     return ret;
 }
+
+/*========================================= END FILE ============================================*/

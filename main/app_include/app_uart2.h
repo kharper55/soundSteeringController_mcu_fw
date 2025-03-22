@@ -71,3 +71,5 @@ int sendData(const char * logName, const char * data);
 #endif
 
 #endif  // APP_UART2_H
+
+/*========================================= END FILE ============================================*/
