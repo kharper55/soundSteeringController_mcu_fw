@@ -27,7 +27,6 @@ esp_err_t adc_calibration_init(adc_unit_t unit, adc_channel_t channel,
     esp_err_t ret = ESP_FAIL;
     bool calibrated = false;
 
-
     if (!calibrated) {
         ESP_LOGI(ADC_TAG, "calibration scheme version is %s", "Line Fitting");
         adc_cali_line_fitting_config_t cali_config = {

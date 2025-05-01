@@ -24,6 +24,9 @@ uint32_t app_compute_crc32_bytes(uint8_t * bytes, int data_len) {
     return crc32_le(0, (const uint8_t *)bytes, data_len);
 }
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 uint8_t hex2dec(char hex) {
     if (hex >= '0' && hex <= '9') {
         return hex - '0';
@@ -36,6 +39,9 @@ uint8_t hex2dec(char hex) {
     return 0;
 }
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 uint8_t concat_hex_chars(char high, char low) {
     uint8_t high_val = hex2dec(high);
     uint8_t low_val = hex2dec(low);

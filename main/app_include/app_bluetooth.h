@@ -45,7 +45,6 @@ extern "C" {
 // User functions
 esp_err_t app_bt_init(void);
 
-
 #ifdef __cplusplus
 }
 #endif

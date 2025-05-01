@@ -27,9 +27,10 @@
 #include "app_include/app_gpio.h"       // GPIO function handles
 #include "app_include/app_spi.h"        // SPI function handles (link to Artix7 FPGA)
 #include "app_include/app_i2c.h"        // I2C function handles and interface defintion for digipot
-#include "app_include/app_i2s.h"        // !!!
-#include "app_include/app_bluetooth.h"  // !!!
+#include "app_include/app_i2s.h"        // Not actually utilized currently
+#include "app_include/app_bluetooth.h"  // Not actually utilized currently
 #include "app_include/app_timer.h"      // Not actually utilized currently, port from remote source code
+#include "app_include/app_wifi.h"       // Not actually utilized currently
 
 //NOTE: NEED TO PORT IN CHANGES TO ADC TASKS
 static int vdrive_raw = 0;
@@ -555,6 +556,51 @@ static void spi_task(void * pvParameters) {
     }
 }
 
+/*---------------------------------------------------------------
+    HTTP Webserver Task
+---------------------------------------------------------------*/
+static void wifi_task(void * pvParameters) {
+    /*
+    const bool VERBOSE = true;
+    
+    spiMasterParams_t * params = (spiMasterParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+    spi_device_handle_t * handle = params->handle;
+    uint8_t * tx_buff = params->tx_buff;
+    uint8_t * rx_buff = params->rx_buff;
+    size_t buff_size = params->buff_size;
+    bool * flag = params->flag; // read here and reset
+    int delay_ms = params->delay_ms;
+
+    esp_err_t ret = ESP_OK;*/
+
+    app_bt_init(/*handle*/);
+
+    while(1) {
+
+        // Add a flag here to send ?
+        // Need to get data from uart2 rx task into here and vice versa
+
+        /*
+        if(*flag) {
+
+            ret = spi_master_start_transaction(*handle, tx_buff, rx_buff, (int)buff_size);
+            if(VERBOSE) {
+                if (ret == ESP_OK) {
+                    ESP_LOGI(TAG, "Wrote 0x%08X.", (tx_buff[0] << 24) | (tx_buff[1] << 16) | (tx_buff[2] << 8) | (tx_buff[3]));  
+                    ESP_LOGI(TAG, "Read 0x%08X.", (rx_buff[3] << 24) | (rx_buff[2] << 16) | (rx_buff[1] << 8) | (rx_buff[0]));     
+                } else {
+                    ESP_LOGI(TAG, "TRANSACTION FAILED OR BUS BUSY");
+                }    
+            }
+            *flag = false;
+
+        }
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+        */
+    }
+}
+
 /*============================================ APP_MAIN ============================================*/
 
 void app_main(void) {
@@ -652,15 +698,18 @@ void app_main(void) {
 
     // add dedicated gpio task?
 
-    xSemaphore = xSemaphoreCreateMutex(); 
+    xSemaphore = xSemaphoreCreateMutex(); // Not sure if this was meant to stay.
+ 
+    // Low speed peripheral functions (APP_CPU)
+    xTaskCreatePinnedToCore(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(tx_task,  "uart_tx_task", 1024*4, NULL /*TBD: (void *)&u2txParams*/, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // Only invoke this task when explicitly requested by the remote
+    xTaskCreatePinnedToCore(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(i2c_task, "i2c_task",  1024*4, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
     
-    // how to select core...?
-    xTaskCreate(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES, NULL);
-    xTaskCreate(tx_task,  "uart_tx_task", 1024*4, NULL /*TBD: (void *)&u2txParams*/, configMAX_PRIORITIES-1, NULL); // Only invoke this task when explicitly requested by the remote
-    xTaskCreate(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL);
-    xTaskCreate(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL);
-    xTaskCreate(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL);
-    xTaskCreate(i2c_task, "i2c_task",  1024*4, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL);
+    // RF (webserver via IEE802.11), (PRO_CPU)
+    xTaskCreatePinnedToCore(wifi_task, "wifi_task",  1024*8, NULL/*(void *)&mi2cParams*/, configMAX_PRIORITIES-1, NULL, PRO_CPU_NUM);
 
     while(1) {
 
@@ -690,7 +739,7 @@ void app_main(void) {
             ESP_LOGI(TAG, "AUX: %s", gpio_status_names[gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA channel analog signal input
             ESP_LOGI(TAG, "ECM: %s", gpio_status_names[gpio_get_level(ECM_SW_PIN)]);    
         }
-            
+
         count++;
         app_heartbeat_toggle();
 
