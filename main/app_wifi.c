@@ -13,6 +13,9 @@
     xxxxxxx
 ---------------------------------------------------------------*/
 esp_err_t app_wifi_ap_init(void) {
+    
+
+
     return true;
 }
 

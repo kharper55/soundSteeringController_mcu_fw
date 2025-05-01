@@ -19,6 +19,9 @@ const char * device_state_names[2] = {
     "ON"
 };
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_gpio_init(void) {
     // GP OUTPUTS
     gpio_reset_pin(HEARTBEAT_LED_PIN);
@@ -57,6 +60,9 @@ esp_err_t app_gpio_init(void) {
     return ESP_OK;
 }
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_heartbeat_toggle(void) {
     static bool heartbeat_level;
     static bool first_call = true;

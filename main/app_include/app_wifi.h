@@ -9,14 +9,6 @@
     Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
 //==================================================================================================*/
 
-/*
-ESP-IDF currently supports two host stacks. The Bluedroid based stack (default) supports classic 
-Bluetooth as well as BLE. On the other hand, Apache NimBLE based stack is BLE only. For users to make a choice:
-    - For usecases involving classic Bluetooth as well as BLE, Bluedroid should be used.
-    - For BLE-only usecases, using NimBLE is recommended. It is less demanding in terms of 
-    code footprint and runtime memory, making it suitable for such scenarios.
-*/
-
 #ifndef APP_WIFI_H
 #define APP_WIFI_H
 

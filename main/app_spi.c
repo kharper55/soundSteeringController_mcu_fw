@@ -9,6 +9,9 @@
 
 #include "app_include/app_spi.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_spi_init(spi_device_handle_t * spi) {
 
     esp_err_t ret;
@@ -51,7 +54,6 @@ esp_err_t app_spi_init(spi_device_handle_t * spi) {
 /*---------------------------------------------------------------
         SPI Stuff
 ---------------------------------------------------------------*/
-
 /* Send data to the LCD. Uses spi_device_polling_transmit, which waits until the
  * transfer is complete.
  *

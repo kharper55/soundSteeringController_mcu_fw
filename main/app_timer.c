@@ -9,11 +9,17 @@
 
 #include "app_include/app_timer.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 gptimer_state_t GPTIMER_DEFAULT_STATE = {
     .timerHandle = -1,
     .running = false
 };
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_reconfigTimerAlarm(gptimer_handle_t * timerHandle, gptimer_state_t * state, uint16_t time_ms, bool oneShot) {
 
     esp_err_t ret = ESP_OK;
@@ -41,6 +47,9 @@ esp_err_t app_reconfigTimerAlarm(gptimer_handle_t * timerHandle, gptimer_state_t
     return ret;
 }
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 // Initialize a timer with a predeclared NULL timerHandle. Allows a user to specify a callback in the main application source file 
 esp_err_t app_initTimer(gptimer_handle_t * timerHandle, void (*cb)(int), uint16_t time_ms, bool oneShot) {
 
@@ -73,6 +82,9 @@ esp_err_t app_initTimer(gptimer_handle_t * timerHandle, void (*cb)(int), uint16_
     return ret;
 }
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_toggleTimerRun(gptimer_handle_t * timerHandle, gptimer_state_t * state) {
 
     esp_err_t ret = ESP_OK;
@@ -89,6 +101,9 @@ esp_err_t app_toggleTimerRun(gptimer_handle_t * timerHandle, gptimer_state_t * s
     return ret;
 }
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_setTimerCount(gptimer_handle_t * timerHandle, uint64_t value) {
 
     esp_err_t ret = ESP_OK;
@@ -97,6 +112,9 @@ esp_err_t app_setTimerCount(gptimer_handle_t * timerHandle, uint64_t value) {
     return ret;
 }
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_getTimerCount(gptimer_handle_t * timerHandle, uint64_t * value) {
 
     esp_err_t ret = ESP_OK;

@@ -9,6 +9,9 @@
 
 #include "app_include/app_i2s.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
+/*---------------------------------------------------------------
+    xxxxxxx
+---------------------------------------------------------------*/
 esp_err_t app_i2s_init(void) {
     // i2s output as gpio for now
     gpio_reset_pin(I2S_SDA_PIN);

@@ -11,6 +11,7 @@
         - general code clean up and commenting needed. Rearrange prototype and def for functions so main at top
 
     Written using ESP-IDF v5.1.1 API
+    New builds using ESP-IDF v5.1.6 API as of 03/10/2025 - https://docs.espressif.com/projects/esp-idf/en/v5.1.6/esp32/api-guides/index.html
 //==================================================================================================*/
 
 // TOOL CHANGE INCLUSIONS 03/10/2025 (see "app_utility")
@@ -20,6 +21,7 @@
 // Work on all comms. Especially from remote to controller...
 // We need some encoding of the data... data to be sent is from 2 encoders (angles) and 2 pots (volume, other)
 // ^ no clue what i meant by this last line 03/10
+// Work on error handling
 
 #include "app_include/app_utility.h"    // CRC32 implementation + other header dependents
 #include "app_include/app_uart2.h"      // UART comms to remote
@@ -67,10 +69,10 @@ uint16_t digipot_value = AD5272_RDAC_MID;
 bool artix7_send_flag = false;
 bool ad5272_update_flag = false;
 
-extern const char * temperature_names[5];
-extern const char * gpio_status_names[2];
-extern const char * serial_cmd_names[7];
-extern const char * device_state_names[2];
+extern const char * temperature_names[5];  // Defined in app_adc.h. Might want to capitilize these
+extern const char * gpio_status_names[2];  // Defined in app_gpio.h
+extern const char * serial_cmd_names[7];   // Defined in app_uart2.h
+extern const char * device_state_names[2]; // Defined in app_gpio.h
 
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task

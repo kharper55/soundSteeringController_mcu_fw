@@ -9,6 +9,7 @@
 
 #include "app_include/app_uart2.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
+// Descriptive string names for the serial_cmds_t values
 const char * serial_cmd_names[7] = {
    "NOP",
    "TOGGLE ON/OFF",
@@ -19,7 +20,9 @@ const char * serial_cmd_names[7] = {
    "REQUEST INFO"
 };
 
-/* UART initialization function */
+/*---------------------------------------------------------------
+    UART initialization function
+---------------------------------------------------------------*/
 void app_uart2_init(int baud) {
     const uart_config_t uart_config = {
         .baud_rate = baud,
@@ -35,7 +38,9 @@ void app_uart2_init(int baud) {
     uart_set_pin(UART_NUM_2, U2TXD_PIN, U2RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 }
 
-/* UART data sending function */
+/*---------------------------------------------------------------
+    UART data sending function
+---------------------------------------------------------------*/
 int sendData(const char* logName, const char* data) {
     const bool VERBOSE = true;
     const int len = strlen(data);
