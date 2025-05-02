@@ -627,10 +627,13 @@ static void wifi_task(void * pvParameters) {
     }
         
     // This needs to be one big event handler... Disconnects, actions, etc.
+    // Generally, it is easy to write code in "sunny-day" scenarios, such as WIFI_EVENT_STA_START 
+    // and WIFI_EVENT_STA_CONNECTED. The hard part is to write routines in "rainy-day" scenarios, 
+    // such as WIFI_EVENT_STA_DISCONNECTED. Good handling of "rainy-day" scenarios is fundamental 
+    // to robust Wi-Fi applications. Refer to ESP32 Wi-Fi Event Description, ESP32 Wi-Fi station 
+    // General Scenario, and ESP32 Wi-Fi AP General Scenario. See also the overview of the Event 
+    // Loop Library in ESP-IDF.
     while(1) {
-
-        // Add a flag here to send ?
-        // Need to get data from uart2 rx task into here and vice versa
 
         /*
         if(*flag) {
@@ -647,9 +650,13 @@ static void wifi_task(void * pvParameters) {
             *flag = false;
 
         }
-        vTaskDelay(pdMS_TO_TICKS(delay_ms));
         */
+
+        //vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
+
+    app_wifi_deinit(); // Should never get here
+
 }
 
 /*============================================ APP_MAIN ============================================*/

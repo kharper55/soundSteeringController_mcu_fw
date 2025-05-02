@@ -64,9 +64,23 @@ esp_err_t app_wifi_init(wifi_mode_t mode) {
 
     // ============ 2. Configuration Phase ============ //
 
-    // Configure the Wi-Fi mode as AP 
+    // Configure the Wi-Fi mode as AP/STA or both
     ret = esp_wifi_set_mode(mode); // (WIFI_MODE_STA/WIFI_MODE_AP) to 
     if (ret != ESP_OK) return ret;
+
+    wifi_config_t sta_cfg = {
+        .sta = {
+            .ssid = "KevinESP.STA",
+            .password = "YourPassword",
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+            .pmf_cfg = {
+                .capable = true,
+                .required = false,
+            },
+        },
+    };
+    
+    esp_wifi_set_config(WIFI_IF_STA, &sta_cfg);
 
     // ============ 3. Start Phase ============ //
 
