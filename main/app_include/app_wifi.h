@@ -18,6 +18,7 @@ extern "C" {
 
 // Includes
 #include "app_utility.h" // for esp_err_t
+#include "esp_wifi.h"
 
 // Pin Defines
 
@@ -27,10 +28,25 @@ extern "C" {
 
 // Typedefs
 
+// General parameters for the FreeRTOS WiFi task
+typedef struct {
+    char * TAG;
+    wifi_mode_t mode;
+    //adc_oneshot_unit_handle_t * handle;
+    //adc_cali_handle_t * cali_handle;
+    //adc_unit_t unit;
+    //adc_channel_t channel;
+    //adc_atten_t atten;
+    //adc_filter_t * filt;
+    //int delay_ms;
+    //int * vraw;
+    //int * vcal;
+    //int * vfilt;
+} wifiParams_t;
+
 // User functions
-esp_err_t app_wifi_ap_init(void);
-esp_err_t app_wifi_sta_init(void);
-esp_err_t app_wifi_ap_sta_init(void);   // This function should call the ap and sta init functions
+esp_err_t app_wifi_deinit(void);
+esp_err_t app_wifi_init(wifi_mode_t mode);
 
 /*
 Typical Pattern: Wi-Fi Provisioning Flow

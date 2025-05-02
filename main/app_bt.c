@@ -7,7 +7,7 @@
     Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
 //==================================================================================================*/
 
-#include "app_include/app_bluetooth.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
+#include "app_include/app_bt.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
 /*---------------------------------------------------------------
     xxxxxxx

@@ -18,8 +18,8 @@ Bluetooth as well as BLE. On the other hand, Apache NimBLE based stack is BLE on
     code footprint and runtime memory, making it suitable for such scenarios.
 */
 
-#ifndef APP_BLUETOOTH_H
-#define APP_BLUETOOTH_H
+#ifndef APP_BT_H
+#define APP_BT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +49,6 @@ esp_err_t app_bt_init(void);
 }
 #endif
 
-#endif  // APP_BLUETOOTH_H
+#endif  // APP_BT_H
 
 /*========================================= END FILE ============================================*/

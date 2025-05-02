@@ -30,7 +30,7 @@
 #include "app_include/app_spi.h"        // SPI function handles (link to Artix7 FPGA)
 #include "app_include/app_i2c.h"        // I2C function handles and interface defintion for digipot
 #include "app_include/app_i2s.h"        // Not actually utilized currently
-#include "app_include/app_bluetooth.h"  // Not actually utilized currently
+#include "app_include/app_bt.h"         // Not actually utilized currently
 #include "app_include/app_timer.h"      // Not actually utilized currently, port from remote source code
 #include "app_include/app_wifi.h"       // Not actually utilized currently
 
@@ -576,8 +576,57 @@ static void wifi_task(void * pvParameters) {
 
     esp_err_t ret = ESP_OK;*/
 
-    app_bt_init(/*handle*/);
+    wifiParams_t * params = (wifiParams_t *) pvParameters;
+    wifi_mode_t mode = params->mode;
 
+    esp_err_t ret = ESP_OK;
+
+    ret = app_wifi_init(mode);
+
+    // Check if app_wifi_init() succeeded
+    if (ret != ESP_OK) { 
+        // Handle error codes. Refer to error code esp_err.h
+        switch(ret) {
+
+            case(ESP_FAIL):
+                break;
+
+            // WiFi driver was not installed by esp_wifi_init()
+            case(ESP_ERR_WIFI_NOT_INIT):
+                break;
+
+            // Some function called inside the API was passed invalid argument
+            // User should check if the wifi related config is correc
+            case(ESP_ERR_INVALID_ARG):
+                break;
+                
+            // Out of memory when calling a WiFi API function
+            case(ESP_ERR_NO_MEM):
+                break;
+
+            // WiFi internal error, station or soft-AP control block wrong
+            case(ESP_ERR_WIFI_CONN):
+                break;
+
+            // WiFi driver was not started by esp_wifi_start()
+            case(ESP_ERR_WIFI_NOT_STARTED):
+                break;
+
+            // WiFi mode error
+            case(ESP_ERR_WIFI_MODE):
+                break;
+
+            // SSID is invalid
+            case(ESP_ERR_WIFI_SSID):
+                break;
+            
+            // Non-descript error handler
+            default:
+                break;
+        }
+    }
+        
+    // This needs to be one big event handler... Disconnects, actions, etc.
     while(1) {
 
         // Add a flag here to send ?
@@ -695,6 +744,11 @@ void app_main(void) {
         //.val = &rdacVal,
         .delay_ms = 10
     };
+
+    wifiParams_t wifiParams = {
+        .TAG = "WIFI",
+        .mode = WIFI_MODE_STA
+    };
     
     // ===== Application Task Declarations ===== //
 
@@ -711,7 +765,7 @@ void app_main(void) {
     xTaskCreatePinnedToCore(i2c_task, "i2c_task",  1024*4, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
     
     // RF (webserver via IEE802.11), (PRO_CPU)
-    xTaskCreatePinnedToCore(wifi_task, "wifi_task",  1024*8, NULL/*(void *)&mi2cParams*/, configMAX_PRIORITIES-1, NULL, PRO_CPU_NUM);
+    xTaskCreatePinnedToCore(wifi_task, "wifi_task",  1024*8, (void *)&wifiParams, configMAX_PRIORITIES-1, NULL, PRO_CPU_NUM);
 
     while(1) {
 
