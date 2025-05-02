@@ -716,7 +716,7 @@ static void wifi_task(void * pvParameters) {
             }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(2)); // i think this allows scheduler some freedom if i recall correctly
+        vTaskDelay(pdMS_TO_TICKS(10)); // i think this allows scheduler some freedom if i recall correctly
     }
 
     app_wifi_deinit(); // Should never get here
