@@ -22,6 +22,7 @@
 // We need some encoding of the data... data to be sent is from 2 encoders (angles) and 2 pots (volume, other)
 // ^ no clue what i meant by this last line 03/10
 // Work on error handling
+// fix fpga heartbeat and front panel strobe pwm scale... use mcu hb as gate for fpga hb so they synchronize
 // figure out 240mhz operation
 
 #include "app_include/app_utility.h"    // CRC32 implementation + other header dependents

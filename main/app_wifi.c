@@ -32,6 +32,11 @@ esp_err_t app_wifi_deinit(void) {
 
 /*---------------------------------------------------------------
     esp_err_t app_wifi_init(wifi_mode_t mode)
+    
+    AP Mode - Create own Wi-Fi network (SSID), acting as a hotspot.
+              Other devices (like phones or laptops) can connect directly to the ESP32.
+    STA Mode - Connect to an existing Wi-Fi network (e.g., your home router) 
+               and behaves like a typical device
 ---------------------------------------------------------------*/
 esp_err_t app_wifi_init(wifi_mode_t mode) {
 
