@@ -19,6 +19,7 @@ extern "C" {
 // Includes
 #include "app_utility.h" // for esp_err_t
 #include "esp_wifi.h"
+#include "nvs_flash.h"
 
 // Pin Defines
 

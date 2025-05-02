@@ -22,6 +22,7 @@
 // We need some encoding of the data... data to be sent is from 2 encoders (angles) and 2 pots (volume, other)
 // ^ no clue what i meant by this last line 03/10
 // Work on error handling
+// figure out 240mhz operation
 
 #include "app_include/app_utility.h"    // CRC32 implementation + other header dependents
 #include "app_include/app_uart2.h"      // UART comms to remote
@@ -467,7 +468,6 @@ static void i2c_task(void * pvParameters) {
             *updateFlag = false;
         }
 
-
         /*if (count == 3) {
             ESP_LOGI(TAG, "Unlocking RDAC");
             ret = ad5272_ctrl_reg_write(1 << AD5272_RDAC_WEN);
@@ -559,9 +559,9 @@ static void spi_task(void * pvParameters) {
 }
 
 /*---------------------------------------------------------------
-    HTTP Webserver Task
+    GPIO Task
 ---------------------------------------------------------------*/
-static void wifi_task(void * pvParameters) {
+static void gpio_task(void * pvParameters) {
     /*
     const bool VERBOSE = true;
     
@@ -576,63 +576,11 @@ static void wifi_task(void * pvParameters) {
 
     esp_err_t ret = ESP_OK;*/
 
-    wifiParams_t * params = (wifiParams_t *) pvParameters;
-    wifi_mode_t mode = params->mode;
+    gpioParams_t * params = (gpioParams_t *) pvParameters;
+    const char * TAG = params->TAG;
 
     esp_err_t ret = ESP_OK;
-
-    ret = app_wifi_init(mode);
-
-    // Check if app_wifi_init() succeeded
-    if (ret != ESP_OK) { 
-        // Handle error codes. Refer to error code esp_err.h
-        switch(ret) {
-
-            case(ESP_FAIL):
-                break;
-
-            // WiFi driver was not installed by esp_wifi_init()
-            case(ESP_ERR_WIFI_NOT_INIT):
-                break;
-
-            // Some function called inside the API was passed invalid argument
-            // User should check if the wifi related config is correc
-            case(ESP_ERR_INVALID_ARG):
-                break;
-                
-            // Out of memory when calling a WiFi API function
-            case(ESP_ERR_NO_MEM):
-                break;
-
-            // WiFi internal error, station or soft-AP control block wrong
-            case(ESP_ERR_WIFI_CONN):
-                break;
-
-            // WiFi driver was not started by esp_wifi_start()
-            case(ESP_ERR_WIFI_NOT_STARTED):
-                break;
-
-            // WiFi mode error
-            case(ESP_ERR_WIFI_MODE):
-                break;
-
-            // SSID is invalid
-            case(ESP_ERR_WIFI_SSID):
-                break;
-            
-            // Non-descript error handler
-            default:
-                break;
-        }
-    }
         
-    // This needs to be one big event handler... Disconnects, actions, etc.
-    // Generally, it is easy to write code in "sunny-day" scenarios, such as WIFI_EVENT_STA_START 
-    // and WIFI_EVENT_STA_CONNECTED. The hard part is to write routines in "rainy-day" scenarios, 
-    // such as WIFI_EVENT_STA_DISCONNECTED. Good handling of "rainy-day" scenarios is fundamental 
-    // to robust Wi-Fi applications. Refer to ESP32 Wi-Fi Event Description, ESP32 Wi-Fi station 
-    // General Scenario, and ESP32 Wi-Fi AP General Scenario. See also the overview of the Event 
-    // Loop Library in ESP-IDF.
     while(1) {
 
         /*
@@ -652,11 +600,126 @@ static void wifi_task(void * pvParameters) {
         }
         */
 
-        //vTaskDelay(pdMS_TO_TICKS(delay_ms));
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+}
+
+/*---------------------------------------------------------------
+    HTTP Webserver Task
+---------------------------------------------------------------*/
+static void wifi_task(void * pvParameters) {
+    /*
+    const bool VERBOSE = true;
+    
+    spiMasterParams_t * params = (spiMasterParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+    spi_device_handle_t * handle = params->handle;
+    uint8_t * tx_buff = params->tx_buff;
+    uint8_t * rx_buff = params->rx_buff;
+    size_t buff_size = params->buff_size;
+    bool * flag = params->flag; // read here and reset
+    int delay_ms = params->delay_ms;
+
+    esp_err_t ret = ESP_OK;*/
+
+    wifiParams_t * params = (wifiParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+    wifi_mode_t mode = params->mode;
+
+    esp_err_t ret = ESP_OK;
+
+    ret = app_wifi_init(mode); // currently causing a watchdog issue or something
+        
+    // This needs to be one big event handler... Disconnects, actions, etc.
+    // Generally, it is easy to write code in "sunny-day" scenarios, such as WIFI_EVENT_STA_START 
+    // and WIFI_EVENT_STA_CONNECTED. The hard part is to write routines in "rainy-day" scenarios, 
+    // such as WIFI_EVENT_STA_DISCONNECTED. Good handling of "rainy-day" scenarios is fundamental 
+    // to robust Wi-Fi applications. Refer to ESP32 Wi-Fi Event Description, ESP32 Wi-Fi station 
+    // General Scenario, and ESP32 Wi-Fi AP General Scenario. See also the overview of the Event 
+    // Loop Library in ESP-IDF.
+    while(1) {
+
+        // Check if app_wifi_init() succeeded
+        if (ret != ESP_OK) { 
+
+            ESP_LOGI(TAG, "!An error occured (err no. %d)!", ret);     
+
+            // Handle error codes. Refer to error code esp_err.h
+            switch(ret) {
+                
+                // SSID is invalid
+                case(ESP_ERR_WIFI_SSID):
+                    ESP_LOGI(TAG, "SSID is invalid.");  
+                    break;
+
+                // Password is invalid
+                case(ESP_ERR_WIFI_PASSWORD):
+                    ESP_LOGI(TAG, "Password is invalid.");  
+                    break;
+
+                // WiFi driver was not installed by esp_wifi_init()
+                case(ESP_ERR_WIFI_NOT_INIT):
+                    ESP_LOGI(TAG, "WiFi driver was not installed.");  
+                    break;
+
+                // WiFi driver was not started by esp_wifi_start()
+                case(ESP_ERR_WIFI_NOT_STARTED):
+                    ESP_LOGI(TAG, "WiFi driver was not started.");
+                    break;
+                
+                // Default event loop has already been created
+                case(ESP_ERR_INVALID_STATE):
+                    ESP_LOGI(TAG, "Default event loop has already been created.");
+                    break;
+
+                // Some function called inside the API was passed invalid argument
+                // User should check if the wifi related config is correc
+                case(ESP_ERR_INVALID_ARG):
+                    ESP_LOGI(TAG, "An API function was passed an invalid argument.");
+                    break;
+
+                // WiFi internal error, station or soft-AP control block wrong
+                case(ESP_ERR_WIFI_CONN):
+                    ESP_LOGI(TAG, "WiFi internal error.");
+                    break;
+
+                // WiFi mode error
+                case(ESP_ERR_WIFI_MODE):
+                    ESP_LOGI(TAG, "WiFi mode error.");
+                    break;
+
+                // WiFi interface error
+                case(ESP_ERR_WIFI_IF):
+                    ESP_LOGI(TAG, "WiFi interface error.");
+                    break;
+                                
+                // Out of memory when calling a WiFi API function
+                case(ESP_ERR_NO_MEM):
+                    ESP_LOGI(TAG, "Out of memory when calling a WiFi API function.");
+                    break;
+
+                // WiFi internal NVS module error
+                case(ESP_ERR_WIFI_NVS):
+                    ESP_LOGI(TAG, "Internal NVS module error.");
+                    break;
+                
+                // One of the ESP-IDF API function calls in app_wifi_init() failed...
+                case(ESP_FAIL):
+                    ESP_LOGI(TAG, "One of the ESP-IDF API function calls in app_wifi_init() failed.");
+                    break;
+
+                // Non-descript error handler
+                default:
+                    ESP_LOGI(TAG, "No specific function handler exists.");
+                    break;
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(2)); // i think this allows scheduler some freedom if i recall correctly
     }
 
     app_wifi_deinit(); // Should never get here
-
 }
 
 /*============================================ APP_MAIN ============================================*/
@@ -668,10 +731,10 @@ void app_main(void) {
     const static char *TAG = "APP";
     esp_err_t ret;
 
-    app_uart2_init(U2_BAUD);
-    ESP_LOGI(TAG, "UART2 initialized successfully.");
-    app_gpio_init();
-    app_i2s_init();
+    app_uart2_init(U2_BAUD); // not sure i want to call this here
+    ESP_LOGI(TAG, "UART2 initialized successfully."); 
+    app_gpio_init(); // not sure i want to call this here
+    app_i2s_init();  // not sure i want to call this here
 
     u2rxParams_t u2rxParams = {
         .TAG = "U2R",
@@ -754,30 +817,42 @@ void app_main(void) {
 
     wifiParams_t wifiParams = {
         .TAG = "WIFI",
-        .mode = WIFI_MODE_STA
+        .mode = WIFI_MODE_APSTA
+    };
+
+    gpioParams_t gpioParams = { // CURRENTLY UNUSED
+        .TAG = "GPIO"
     };
     
     // ===== Application Task Declarations ===== //
 
-    // add dedicated gpio task?
+    // add dedicated gpio task. need gpioParams_t
 
     xSemaphore = xSemaphoreCreateMutex(); // Not sure if this was meant to stay.
+
+    // Note that a fast loop will hog resources and watchdog will not be kicked, causing a soft reset.
  
     // Low speed peripheral functions (APP_CPU)
-    xTaskCreatePinnedToCore(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(tx_task,  "uart_tx_task", 1024*4, NULL /*TBD: (void *)&u2txParams*/, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // Only invoke this task when explicitly requested by the remote
-    xTaskCreatePinnedToCore(adc_task, "vdrive_task",  1024*2, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(adc_task, "vntc_task",  1024*2, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
+    // Tags should specify the core
+    // Make task priorities and cores global #defines at top of this file
+    xTaskCreatePinnedToCore(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // This task need not have high priority without the handheld remote connection. A configurable pulldown might be a good option to set this on startup.
+    xTaskCreatePinnedToCore(tx_task,  "uart_tx_task", 1024*4, NULL /*(void *)&u2txParams*/, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // Only invoke this task when explicitly requested by the remote
     xTaskCreatePinnedToCore(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
     xTaskCreatePinnedToCore(i2c_task, "i2c_task",  1024*4, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(adc_task, "vdrive_task",  1024*4, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(adc_task, "vntc_task",  1024*4, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(gpio_task, "gpio_task",  1024*2, (void *)&gpioParams, configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
     
     // RF (webserver via IEE802.11), (PRO_CPU)
-    xTaskCreatePinnedToCore(wifi_task, "wifi_task",  1024*8, (void *)&wifiParams, configMAX_PRIORITIES-1, NULL, PRO_CPU_NUM);
+    // Tags should specify the core
+    xTaskCreatePinnedToCore(wifi_task, "wifi_task",  1024*8, (void *)&wifiParams, configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
 
     while(1) {
 
         ESP_LOGI("", "");
         ESP_LOGI(TAG, "Count: %ld", count);
+
+        // move below to gpio task
 
         if (count == 2) { 
             // Drive this pin low if MCU needs to shut down the array for whatever reason

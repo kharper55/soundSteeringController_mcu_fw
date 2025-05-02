@@ -57,6 +57,10 @@ typedef enum {
     SDOB
 } device_audio_channels_t;
 
+typedef struct {
+    char * TAG
+} gpioParams_t;
+
 extern const char * device_state_names[2];
 
 // User functions

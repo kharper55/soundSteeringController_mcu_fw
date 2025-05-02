@@ -36,12 +36,30 @@ esp_err_t app_wifi_deinit(void) {
 esp_err_t app_wifi_init(wifi_mode_t mode) {
 
     esp_err_t ret = ESP_OK;
-    wifi_init_config_t wfcfg;              // for esp_wifi_init()
-    esp_event_loop_args_t event_loop_args; // for esp_event_loop_create()
-    esp_event_loop_handle_t event_loop;    // for esp_event_loop_create()
+    wifi_init_config_t wfcfg = WIFI_INIT_CONFIG_DEFAULT(); // for esp_wifi_init()
+    //esp_event_loop_args_t event_loop_args; // for esp_event_loop_create()
+    //esp_event_loop_handle_t event_loop;    // for esp_event_loop_create()
+
+    /*
+    esp_event_loop_args_t event_loop_args = {
+        .queue_size = 32,
+        .task_name = "event_task",
+        .task_priority = uxTaskPriorityGet(NULL),
+        .task_stack_size = 2048,
+        .task_core_id = tskNO_AFFINITY,
+        .dispatch_method = ESP_EVENT_ANY_BASE,
+    };
+    */
 
     // Check user input mode selection
     if (!(mode == WIFI_MODE_AP || mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA)) return ESP_FAIL;
+
+    ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
 
     // ============ 1. Wi-Fi/LwIP Init Phase ============ //
 
@@ -50,12 +68,27 @@ esp_err_t app_wifi_init(wifi_mode_t mode) {
     if (ret != ESP_OK) return ret;
 
     // Create a system Event task and initialize an application event's callback function
-    ret = esp_event_loop_create(&event_loop_args, &event_loop); 
+    ret = esp_event_loop_create_default();
     if (ret != ESP_OK) return ret;
 
-    // Creates default WIFI AP. In case of any init error this API aborts. Returns pointer to esp-netif instance
-    esp_netif_t *netif = esp_netif_create_default_wifi_ap(); 
-    if (ret != ESP_OK) return ret;
+    // Create default WIFI AP/STA. In case of any init error this API aborts. Returns pointer to esp-netif instance
+    esp_netif_t *netif;
+    switch(mode) {
+        case(WIFI_MODE_AP):
+            netif = esp_netif_create_default_wifi_ap();
+            break;
+        case(WIFI_MODE_STA):
+            netif = esp_netif_create_default_wifi_sta();
+            break;
+        case(WIFI_MODE_APSTA):
+                // Must create *both*
+                esp_netif_create_default_wifi_ap();
+                netif = esp_netif_create_default_wifi_sta();
+            break;
+        // Guaranteed to never execute
+        default:
+            break;
+    }
 
     // Initialize WiFi Allocate resource for WiFi driver, such as WiFi control structure, RX/TX buffer, WiFi NVS 
     // structure etc. This also starts WiFi task.
@@ -70,17 +103,42 @@ esp_err_t app_wifi_init(wifi_mode_t mode) {
 
     wifi_config_t sta_cfg = {
         .sta = {
-            .ssid = "KevinESP.STA",
-            .password = "YourPassword",
-            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-            .pmf_cfg = {
-                .capable = true,
+            .ssid = "TMOBILE-6CB9" /* YOUR SSID */,
+            .password = "jizz1234" /* YOUR PASSWORD */,
+            .threshold.authmode = /*WIFI_AUTH_WPA3_PSK*/ WIFI_AUTH_WPA2_PSK /*WIFI_AUTH_WEP*/ /*WIFI_AUTH_WPA_PSK*/ /*WIFI_AUTH_WPA_WPA2_PSK*/
+            // Often required with WPA3-Personal auth mode
+            ,.pmf_cfg = {
                 .required = false,
-            },
-        },
+                .capable = true,
+            }
+            
+        }
+    };
+
+    wifi_config_t ap_cfg = {
+        .ap = {
+            .ssid = "KevinESP.AP",
+            .password = "11111111",
+            .ssid_len = 0,
+            .channel = 1,
+            .authmode = WIFI_AUTH_WPA2_PSK,
+            .max_connection = 4,
+            .pmf_cfg = {
+                .required = false,
+                .capable = true,
+            }
+        }
     };
     
-    esp_wifi_set_config(WIFI_IF_STA, &sta_cfg);
+    // Always configure both for APSTA mode
+    if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA) {
+        ret = esp_wifi_set_config(WIFI_IF_STA, &sta_cfg);
+        if (ret != ESP_OK) return ret;
+    } 
+    if (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA) { // If APSTA, it will already have STA configured by this point
+        ret = esp_wifi_set_config(WIFI_IF_AP, &ap_cfg);
+        if (ret != ESP_OK) return ret;
+    }
 
     // ============ 3. Start Phase ============ //
 
