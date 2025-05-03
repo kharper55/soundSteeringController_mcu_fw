@@ -630,7 +630,7 @@ static void wifi_task(void * pvParameters) {
 
     esp_err_t ret = ESP_OK;
 
-    ret = app_wifi_init(mode); // currently causing a watchdog issue or something
+    ret = app_wifi_init(TAG, mode); // currently causing a watchdog issue or something
         
     // This needs to be one big event handler... Disconnects, actions, etc.
     // Generally, it is easy to write code in "sunny-day" scenarios, such as WIFI_EVENT_STA_START 
@@ -639,6 +639,22 @@ static void wifi_task(void * pvParameters) {
     // to robust Wi-Fi applications. Refer to ESP32 Wi-Fi Event Description, ESP32 Wi-Fi station 
     // General Scenario, and ESP32 Wi-Fi AP General Scenario. See also the overview of the Event 
     // Loop Library in ESP-IDF.
+
+    /*
+    Typical Pattern: Wi-Fi Provisioning Flow
+
+        1. Boot into AP mode if no known Wi-Fi credentials.
+        2. Host a captive portal (ESP-IDF supports this).
+        3. User connects to ESP32 AP, enters Wi-Fi credentials.
+        4. ESP32 saves credentials in NVS and reboots into STA mode.
+        5. ESP32 connects to the user’s Wi-Fi and serves the web page there.
+
+    ESP-IDF provides Wi-Fi provisioning libraries (wifi_provisioning component) with:
+
+        - BLE or SoftAP-based setup
+        - Captive portal
+        - Secure credential storage
+    */
     while(1) {
 
         // Check if app_wifi_init() succeeded
@@ -848,6 +864,7 @@ void app_main(void) {
     // Tags should specify the core
     xTaskCreatePinnedToCore(wifi_task, "wifi_task",  1024*8, (void *)&wifiParams, configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
 
+    // Main loop toggles heartbeat to indicate scheduler keep-up
     while(1) {
 
         ESP_LOGI("", "");

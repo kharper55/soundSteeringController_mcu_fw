@@ -20,10 +20,28 @@ extern "C" {
 #include "app_utility.h" // for esp_err_t
 #include "esp_wifi.h"
 #include "nvs_flash.h"
+#include "netif/ethernet.h"
+#include "lwip/err.h"
+#include "lwip/sys.h"
+#include "lwip/netif.h"
+#include "lwip/lwip_napt.h"
+#include "lwip/dns.h"
 
 // Pin Defines
 
 // Settings
+#define AP_WIFI_SSID             "34_TREM_ESP_NAT_TEST"
+#define AP_WIFI_PASS             "11111111"
+#define AP_WIFI_CHANNEL          0
+#define AP_MAX_STA_CONN          4
+
+#define STA_WIFI_SSID            "TMOBILE-6CB9"
+#define STA_WIFI_PASS            "jizz1234"
+#define STA_WIFI_MAX_RETRY       10
+#define STA_WIFI_CONNECTED_BIT   BIT0
+#define STA_WIFI_FAIL_BIT        BIT1
+
+#define MY_DNS_IP_ADDR           0x08080808 // 8.8.8.8
 
 // Macros
 
@@ -47,23 +65,7 @@ typedef struct {
 
 // User functions
 esp_err_t app_wifi_deinit(void);
-esp_err_t app_wifi_init(wifi_mode_t mode);
-
-/*
-Typical Pattern: Wi-Fi Provisioning Flow
-
-    1. Boot into AP mode if no known Wi-Fi credentials.
-    2. Host a captive portal (ESP-IDF supports this).
-    3. User connects to ESP32 AP, enters Wi-Fi credentials.
-    4. ESP32 saves credentials in NVS and reboots into STA mode.
-    5. ESP32 connects to the user’s Wi-Fi and serves the web page there.
-
-ESP-IDF provides Wi-Fi provisioning libraries (wifi_provisioning component) with:
-
-    - BLE or SoftAP-based setup
-    - Captive portal
-    - Secure credential storage
-*/
+esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode);
 
 #ifdef __cplusplus
 }

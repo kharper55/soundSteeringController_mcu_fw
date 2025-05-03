@@ -9,6 +9,109 @@
 
 #include "app_include/app_wifi.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
+static EventGroupHandle_t sta_evt_grp;
+static int retry_num = 0;
+
+/*---------------------------------------------------------------
+    generic wifi event handler signature
+---------------------------------------------------------------*/
+static void app_esp_ip_napt_init(void) {
+
+    // Ensure the network interface is created and initialized before enabling NAPT
+    esp_netif_ip_info_t ip_info;
+    esp_netif_t * ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+
+    // Enable NAPT (Network Address Port Translation) with the IP address pointer
+    if (ap_netif != NULL && esp_netif_is_netif_up(ap_netif)) {
+        ESP_ERROR_CHECK(esp_netif_napt_enable(ap_netif));
+        ESP_ERROR_CHECK(esp_netif_get_ip_info(ap_netif, &ip_info));
+        ESP_LOGI("NAPT", "NAPT enabled on SoftAP interface with IP: " IPSTR, IP2STR(&ip_info.ip));
+    } else {
+        ESP_LOGW("NAPT", "AP netif not up yet, deferring NAPT enable...");
+    }
+
+    // Set default route. Some LwIP setups require this
+    esp_netif_t * sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    ESP_ERROR_CHECK(esp_netif_get_ip_info(sta_netif, &ip_info));
+    ESP_ERROR_CHECK(esp_netif_set_default_netif(sta_netif)); 
+    ESP_LOGI("NAPT", "STA set to default interface route with IP: " IPSTR, IP2STR(&ip_info.ip));
+
+    // Note that both CONFIG_LWIP_IP_FORWARD and CONFIG_LWIP_L2_TO_L3_COPY options
+    // need to be enabled in system configuration for the NAPT to work on ESP platform
+
+    /*
+    Confirm also:
+
+    You're calling app_esp_ip_napt_init() after the AP and STA are fully initialized.
+    You only enable NAPT on the AP interface, not the STA.
+    You are not setting the IP manually if you're letting the DHCP server assign it.
+    */
+
+}
+
+/*---------------------------------------------------------------
+    generic wifi event handler signature
+---------------------------------------------------------------*/
+static void ap_wifi_event_handler(void* arg, esp_event_base_t event_base,
+                                    int32_t event_id, void* event_data) {
+    if (event_id == WIFI_EVENT_AP_STACONNECTED) {
+        wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+        ESP_LOGI("AP", "station "MACSTR" join, AID=%d",
+                 MAC2STR(event->mac), event->aid);
+    } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+        ESP_LOGI("AP", "station "MACSTR" leave, AID=%d",
+                 MAC2STR(event->mac), event->aid);
+    } //else if (event_base == IP_EVENT && event_id == IP_EVENT_AP_STAIPASSIGNED) {
+      //  ESP_LOGI("AP", "Station got IP from DHCP");
+      //  app_esp_ip_napt_init(); // Enable NAPT here
+    //}
+}
+
+/*---------------------------------------------------------------
+    generic wifi event handler signature
+---------------------------------------------------------------*/
+static void sta_wifi_event_handler(void* arg, esp_event_base_t event_base,
+                                    int32_t event_id, void* event_data) {
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        if (retry_num < STA_WIFI_MAX_RETRY) {
+            esp_wifi_connect();
+            retry_num++;
+            ESP_LOGI("STA", "retry to connect to the AP");
+        } else {
+            xEventGroupSetBits(sta_evt_grp, STA_WIFI_FAIL_BIT);
+        }
+        ESP_LOGI("STA","connect to the AP fail");
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI("STA", "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        retry_num = 0;
+        xEventGroupSetBits(sta_evt_grp, STA_WIFI_CONNECTED_BIT);
+        // Enable DNS (offer) for dhcp server
+        //dhcps_offer_t dhcps_dns_value = OFFER_DNS;
+        //dhcps_set_option_info(6, &dhcps_dns_value, sizeof(dhcps_dns_value)); // deprecated
+        // After STA is connected and got IP:
+        const ip_addr_t* lwip_dns_ip = dns_getserver(0);  // From LwIP
+
+        esp_netif_dns_info_t dns_info = { 0 };
+
+        // Copy using correct field
+        dns_info.ip.type = lwip_dns_ip->type;
+
+        if (lwip_dns_ip->type == IPADDR_TYPE_V4) {
+            dns_info.ip.u_addr.ip4.addr = lwip_dns_ip->u_addr.ip4.addr;
+        } else if (lwip_dns_ip->type == IPADDR_TYPE_V6) {
+            memcpy(&dns_info.ip.u_addr.ip6, &lwip_dns_ip->u_addr.ip6, sizeof(ip6_addr_t));
+        }
+        esp_netif_t* ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+        ESP_ERROR_CHECK(esp_netif_set_dns_info(ap_netif, ESP_NETIF_DNS_MAIN, &dns_info));  
+
+        app_esp_ip_napt_init(); // should happen after STA has an IP, or it may forward incorrectly.
+    }
+}
+
 /*---------------------------------------------------------------
     esp_err_t app_wifi_deinit(void)
 ---------------------------------------------------------------*/
@@ -32,29 +135,20 @@ esp_err_t app_wifi_deinit(void) {
 
 /*---------------------------------------------------------------
     esp_err_t app_wifi_init(wifi_mode_t mode)
-    
+
     AP Mode - Create own Wi-Fi network (SSID), acting as a hotspot.
               Other devices (like phones or laptops) can connect directly to the ESP32.
     STA Mode - Connect to an existing Wi-Fi network (e.g., your home router) 
                and behaves like a typical device
+    NAT - Network Area Translation. Need to route traffic from connected devices on
+          AP to the internet via station connection
 ---------------------------------------------------------------*/
-esp_err_t app_wifi_init(wifi_mode_t mode) {
+esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode) {
 
     esp_err_t ret = ESP_OK;
     wifi_init_config_t wfcfg = WIFI_INIT_CONFIG_DEFAULT(); // for esp_wifi_init()
     //esp_event_loop_args_t event_loop_args; // for esp_event_loop_create()
     //esp_event_loop_handle_t event_loop;    // for esp_event_loop_create()
-
-    /*
-    esp_event_loop_args_t event_loop_args = {
-        .queue_size = 32,
-        .task_name = "event_task",
-        .task_priority = uxTaskPriorityGet(NULL),
-        .task_stack_size = 2048,
-        .task_core_id = tskNO_AFFINITY,
-        .dispatch_method = ESP_EVENT_ANY_BASE,
-    };
-    */
 
     // Check user input mode selection
     if (!(mode == WIFI_MODE_AP || mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA)) return ESP_FAIL;
@@ -65,6 +159,9 @@ esp_err_t app_wifi_init(wifi_mode_t mode) {
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    ip_addr_t dnsserver;
+    sta_evt_grp = xEventGroupCreate();
 
     // ============ 1. Wi-Fi/LwIP Init Phase ============ //
 
@@ -77,80 +174,133 @@ esp_err_t app_wifi_init(wifi_mode_t mode) {
     if (ret != ESP_OK) return ret;
 
     // Create default WIFI AP/STA. In case of any init error this API aborts. Returns pointer to esp-netif instance
-    esp_netif_t *netif;
-    switch(mode) {
-        case(WIFI_MODE_AP):
-            netif = esp_netif_create_default_wifi_ap();
-            break;
-        case(WIFI_MODE_STA):
-            netif = esp_netif_create_default_wifi_sta();
-            break;
-        case(WIFI_MODE_APSTA):
-                // Must create *both*
-                esp_netif_create_default_wifi_ap();
-                netif = esp_netif_create_default_wifi_sta();
-            break;
-        // Guaranteed to never execute
-        default:
-            break;
+    esp_netif_t *ap_netif;
+    esp_netif_t *sta_netif;
+
+    // Must create both for APSTA mode
+    if (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA) { // If APSTA, it will already have STA configured by this point
+        ap_netif = esp_netif_create_default_wifi_ap();
     }
+    if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA) {
+        sta_netif = esp_netif_create_default_wifi_sta();
+    } 
 
     // Initialize WiFi Allocate resource for WiFi driver, such as WiFi control structure, RX/TX buffer, WiFi NVS 
     // structure etc. This also starts WiFi task.
     ret = esp_wifi_init(&wfcfg);
     if (ret != ESP_OK) return ret;
 
+    /* Station Event Handler Register*/
+    esp_event_handler_instance_t sta_any_id;
+    esp_event_handler_instance_t sta_got_ip;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &sta_wifi_event_handler,
+                                                        NULL,
+                                                        &sta_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &sta_wifi_event_handler,
+                                                        NULL,
+                                                        &sta_got_ip));
+
+    /* Access Point Event Handler Register*/
+    esp_event_handler_instance_t ap_any_id;
+    esp_event_handler_instance_t ap_got_ip;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &ap_wifi_event_handler,
+                                                        NULL,
+                                                        &ap_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_AP_STAIPASSIGNED,
+                                                        &ap_wifi_event_handler,
+                                                        NULL,
+                                                        &ap_got_ip));
+
     // ============ 2. Configuration Phase ============ //
+
+    /* Station Wifi Config*/
+    wifi_config_t sta_wifi_config = {
+        .sta = {
+            .ssid = STA_WIFI_SSID,
+            .password = STA_WIFI_PASS,
+            /* Setting a password implies station will connect to all security modes including WEP/WPA.
+             * However these modes are deprecated and not advisable to be used. Incase your Access point
+             * doesn't support WPA2, these mode can be enabled by commenting below line */
+	        .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+
+            .pmf_cfg = {
+                .capable = true,
+                .required = false
+            },
+        },
+    };
+
+    /* Access Point Wifi Config*/
+    wifi_config_t ap_wifi_config = {
+        .ap = {
+            .ssid = AP_WIFI_SSID,
+            .ssid_len = strlen(AP_WIFI_SSID),
+            .channel = AP_WIFI_CHANNEL,
+            .password = AP_WIFI_PASS,
+            .max_connection = AP_MAX_STA_CONN,
+            .authmode = WIFI_AUTH_WPA_WPA2_PSK
+        },
+    };
+    if (strlen(AP_WIFI_PASS) == 0) {
+        ap_wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
 
     // Configure the Wi-Fi mode as AP/STA or both
     ret = esp_wifi_set_mode(mode); // (WIFI_MODE_STA/WIFI_MODE_AP) to 
     if (ret != ESP_OK) return ret;
-
-    wifi_config_t sta_cfg = {
-        .sta = {
-            .ssid = "TMOBILE-6CB9" /* YOUR SSID */,
-            .password = "jizz1234" /* YOUR PASSWORD */,
-            .threshold.authmode = /*WIFI_AUTH_WPA3_PSK*/ WIFI_AUTH_WPA2_PSK /*WIFI_AUTH_WEP*/ /*WIFI_AUTH_WPA_PSK*/ /*WIFI_AUTH_WPA_WPA2_PSK*/
-            // Often required with WPA3-Personal auth mode
-            ,.pmf_cfg = {
-                .required = false,
-                .capable = true,
-            }
-            
-        }
-    };
-
-    wifi_config_t ap_cfg = {
-        .ap = {
-            .ssid = "KevinESP.AP",
-            .password = "11111111",
-            .ssid_len = 0,
-            .channel = 1,
-            .authmode = WIFI_AUTH_WPA2_PSK,
-            .max_connection = 4,
-            .pmf_cfg = {
-                .required = false,
-                .capable = true,
-            }
-        }
-    };
     
     // Always configure both for APSTA mode
     if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA) {
-        ret = esp_wifi_set_config(WIFI_IF_STA, &sta_cfg);
+        ret = esp_wifi_set_config(WIFI_IF_STA, &sta_wifi_config);
         if (ret != ESP_OK) return ret;
     } 
     if (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA) { // If APSTA, it will already have STA configured by this point
-        ret = esp_wifi_set_config(WIFI_IF_AP, &ap_cfg);
+        ret = esp_wifi_set_config(WIFI_IF_AP, &ap_wifi_config);
         if (ret != ESP_OK) return ret;
     }
-
+ 
     // ============ 3. Start Phase ============ //
 
     // Start the Wi-Fi driver which posts WIFI_EVENT_STA_START to the event task; then, the event 
     // task will do some common things and will call the application event callback function.
     ret = esp_wifi_start(); 
     if (ret != ESP_OK) return ret;
+
+    ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
+             AP_WIFI_SSID, AP_WIFI_PASS, AP_WIFI_CHANNEL);
+    
+
+    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
+     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
+    EventBits_t bits = xEventGroupWaitBits(sta_evt_grp,
+            STA_WIFI_CONNECTED_BIT | STA_WIFI_FAIL_BIT,
+            pdFALSE,
+            pdFALSE,
+            portMAX_DELAY);
+
+    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
+     * happened. */
+    if (bits & STA_WIFI_CONNECTED_BIT) {
+        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
+                 STA_WIFI_SSID, STA_WIFI_PASS);
+    } else if (bits & STA_WIFI_FAIL_BIT) {
+        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
+                 STA_WIFI_SSID, STA_WIFI_PASS);
+    } else {
+        ESP_LOGE(TAG, "UNEXPECTED EVENT");
+    }
+
+    /* The event will not be processed after unregister */
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, ap_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, ap_got_ip));
+    vEventGroupDelete(sta_evt_grp);
 
     // ============ 4. Wi-Fi Connect Phase ============ //
 
@@ -160,202 +310,10 @@ esp_err_t app_wifi_init(wifi_mode_t mode) {
     // a failure will be provided. For handling events that disrupt Wi-Fi connection, please refer to phase 5. 
 
     // Connect WiFi station to the AP.
-    ret = esp_wifi_connect();
-    if (ret != ESP_OK) return ret;
+    //ret = esp_wifi_connect(); // this is now called in the appropriate handler
+    //if (ret != ESP_OK) return ret;
 
     return ret;
-
-    /*
-    ESP32 Wi-Fi AP General Scenario
-
-    1. Wi-Fi/LwIP Init Phase
-
-        Step 1.1 ~ 1.5 is a recommended sequence that initializes a Wi-Fi-/LwIP-based application. 
-        However, it is NOT a must-follow sequence, which means that you can create the application task 
-        in step 1.1 and put all other initialization in the application task. Moreover, you may not want to 
-        create the application task in the initialization phase if the application task depends on the sockets. 
-        Rather, you can defer the task creation until the IP is obtained.
-
-        1.1 - The main task calls esp_netif_init() to create an LwIP core task and initialize LwIP-related work.
-        1.2 - The main task calls esp_event_loop_create() to create a system Event task and initialize an application 
-              event's callback function. In the scenario above, the application event's callback function does nothing
-              but relaying the event to the application task.
-        1.3 - The main task calls esp_netif_create_default_wifi_ap() or esp_netif_create_default_wifi_sta() to create 
-              default network interface instance binding station or AP with TCP/IP stack.
-        1.4 - The main task calls esp_wifi_init() to create the Wi-Fi driver task and initialize the Wi-Fi driver.
-        1.5 - The main task calls OS API to create the application task.
-
-        OR
-
-        1.1 - The main task calls OS API to create the APPLICATION task.
-        1.2 - The APPLICATION task calls esp_netif_init() to create an LwIP core task and initialize LwIP-related work.
-        1.3 - The APPLICATION task calls esp_event_loop_create() to create a system Event task and initialize THE application 
-              event's callback function.
-        1.4 - The APPLICATION task calls esp_netif_create_default_wifi_ap() or esp_netif_create_default_wifi_sta() to create 
-              default network interface instance binding station or AP with TCP/IP stack.
-        1.5 - The APPLICATION task calls esp_wifi_init() to create the Wi-Fi driver task and initialize the Wi-Fi driver.
-        
-    2. Wi-Fi Configuration Phase
-
-        Once the Wi-Fi driver is initialized, you can start configuring the Wi-Fi driver. In this scenario, 
-        the mode is AP, so you may need to call esp_wifi_set_mode() (WIFI_MODE_AP) to configure the Wi-Fi 
-        mode as AP. You can call other esp_wifi_set_xxx APIs to configure more settings, such as the protocol mode, 
-        the country code, and the bandwidth. Refer to ESP32 Wi-Fi Configuration.
-
-        Generally, the Wi-Fi driver should be configured before the Wi-Fi connection is set up. But this is NOT 
-        mandatory, which means that you can configure the Wi-Fi connection anytime, provided that the Wi-Fi driver is 
-        initialized successfully. However, if the configuration does not need to change after the Wi-Fi connection is 
-        set up, you should configure the Wi-Fi driver at this stage, because the configuration APIs 
-        (such as esp_wifi_set_protocol()) will cause the Wi-Fi to reconnect, which may not be desirable.
-
-        If the Wi-Fi NVS flash is enabled by menuconfig, all Wi-Fi configuration in this phase, or later phases, 
-        will be stored into flash. When the board powers on/reboots, you do not need to configure the Wi-Fi driver 
-        from scratch. You only need to call esp_wifi_get_xxx APIs to fetch the configuration stored in flash previously. 
-        You can also configure the Wi-Fi driver if the previous configuration is not what you want.
-
-    3. Wi-Fi Start Phase
-
-        3.1 - Call esp_wifi_start() to start the Wi-Fi driver.
-        3.2 - The Wi-Fi driver posts WIFI_EVENT_STA_START to the event task; then, the event task will do some common 
-              things and will call the application event callback function.
-        3.3 - The application event callback function relays the WIFI_EVENT_STA_START to the application task. We 
-              recommend that you call esp_wifi_connect(). However, you can also call esp_wifi_connect() in other phrases after 
-              the WIFI_EVENT_STA_START arises.
-
-    4. Wi-Fi Connect Phase
-
-        4.1 - Once esp_wifi_connect() is called, the Wi-Fi driver will start the internal scan/connection process.
-        4.2 - If the internal scan/connection process is successful, the WIFI_EVENT_STA_CONNECTED will be generated. 
-              In the event task, it starts the DHCP client, which will finally trigger the DHCP process.
-        4.3 - In the above-mentioned scenario, the application event callback will relay the event to the application 
-              task. Generally, the application needs to do nothing, and you can do whatever you want, e.g., print a log.
-
-        In step 4.2, the Wi-Fi connection may fail because, for example, the password is wrong, or the AP is not found. 
-        In a case like this, WIFI_EVENT_STA_DISCONNECTED will arise and the reason for such a failure will be provided. 
-        For handling events that disrupt Wi-Fi connection, please refer to phase 5.
-
-    5. Wi-Fi Disconnect Phase 
-
-        5.1 - When the Wi-Fi connection is disrupted, e.g., the AP is powered off or the RSSI is poor, 
-              WIFI_EVENT_STA_DISCONNECTED will arise. This event may also arise in phase 3. Here, the event task will notify
-              the LwIP task to clear/remove all UDP/TCP connections. Then, all application sockets will be in a wrong status.
-              In other words, no socket can work properly when this event happens.
-        5.2 - In the scenario described above, the application event callback function relays WIFI_EVENT_STA_DISCONNECTED 
-              to the application task. The recommended actions are: 1) call esp_wifi_connect() to reconnect the Wi-Fi, 
-              2) close all sockets, and 3) re-create them if necessary. For details, please refer to WIFI_EVENT_STA_DISCONNECTED.
-
-    6. Wi-Fi Deinit Phase
-
-        6.1 - Call esp_wifi_disconnect() to disconnect the Wi-Fi connectivity.
-        6.2 - Call esp_wifi_stop() to stop the Wi-Fi driver.
-        6.3 - Call esp_wifi_deinit() to unload the Wi-Fi driver.
-
-    */
 }
-
-    /*
-    ESP32 Wi-Fi Station General Scenario
-
-    1. Wi-Fi/LwIP Init Phase
-
-        Step 1.1 ~ 1.5 is a recommended sequence that initializes a Wi-Fi-/LwIP-based application. 
-        However, it is NOT a must-follow sequence, which means that you can create the application task 
-        in step 1.1 and put all other initialization in the application task. Moreover, you may not want to 
-        create the application task in the initialization phase if the application task depends on the sockets. 
-        Rather, you can defer the task creation until the IP is obtained.
-
-        1.1 - The main task calls esp_netif_init() to create an LwIP core task and initialize LwIP-related work.
-        1.2 - The main task calls esp_event_loop_create() to create a system Event task and initialize an application 
-              event's callback function. In the scenario above, the application event's callback function does nothing
-              but relaying the event to the application task.
-        1.3 - The main task calls esp_netif_create_default_wifi_ap() or esp_netif_create_default_wifi_sta() to create 
-              default network interface instance binding station or AP with TCP/IP stack.
-        1.4 - The main task calls esp_wifi_init() to create the Wi-Fi driver task and initialize the Wi-Fi driver.
-        1.5 - The main task calls OS API to create the application task.
-
-        OR
-
-        1.1 - The main task calls OS API to create the APPLICATION task.
-        1.2 - The APPLICATION task calls esp_netif_init() to create an LwIP core task and initialize LwIP-related work.
-        1.3 - The APPLICATION task calls esp_event_loop_create() to create a system Event task and initialize THE application 
-              event's callback function.
-        1.4 - The APPLICATION task calls esp_netif_create_default_wifi_ap() or esp_netif_create_default_wifi_sta() to create 
-              default network interface instance binding station or AP with TCP/IP stack.
-        1.5 - The APPLICATION task calls esp_wifi_init() to create the Wi-Fi driver task and initialize the Wi-Fi driver.
-
-    2. Wi-Fi Configuration Phase
-
-        Once the Wi-Fi driver is initialized, you can start configuring the Wi-Fi driver. In this scenario, 
-        the mode is station, so you may need to call esp_wifi_set_mode() (WIFI_MODE_STA) to configure the Wi-Fi 
-        mode as station. You can call other esp_wifi_set_xxx APIs to configure more settings, such as the protocol mode, 
-        the country code, and the bandwidth. Refer to ESP32 Wi-Fi Configuration.
-
-        Generally, the Wi-Fi driver should be configured before the Wi-Fi connection is set up. But this is NOT 
-        mandatory, which means that you can configure the Wi-Fi connection anytime, provided that the Wi-Fi driver is 
-        initialized successfully. However, if the configuration does not need to change after the Wi-Fi connection is 
-        set up, you should configure the Wi-Fi driver at this stage, because the configuration APIs 
-        (such as esp_wifi_set_protocol()) will cause the Wi-Fi to reconnect, which may not be desirable.
-
-        If the Wi-Fi NVS flash is enabled by menuconfig, all Wi-Fi configuration in this phase, or later phases, 
-        will be stored into flash. When the board powers on/reboots, you do not need to configure the Wi-Fi driver 
-        from scratch. You only need to call esp_wifi_get_xxx APIs to fetch the configuration stored in flash previously. 
-        You can also configure the Wi-Fi driver if the previous configuration is not what you want.
-
-    3. Wi-Fi Start Phase
-
-        3.1 - Call esp_wifi_start() to start the Wi-Fi driver.
-        3.2 - The Wi-Fi driver posts WIFI_EVENT_STA_START to the event task; then, the event task will do some common 
-              things and will call the application event callback function.
-        3.3 - The application event callback function relays the WIFI_EVENT_STA_START to the application task. We 
-              recommend that you call esp_wifi_connect(). However, you can also call esp_wifi_connect() in other phrases after 
-              the WIFI_EVENT_STA_START arises.
-
-    4. Wi-Fi Connect Phase
-
-        4.1 - Once esp_wifi_connect() is called, the Wi-Fi driver will start the internal scan/connection process.
-        4.2 - If the internal scan/connection process is successful, the WIFI_EVENT_STA_CONNECTED will be generated. 
-              In the event task, it starts the DHCP client, which will finally trigger the DHCP process.
-        4.3 - In the above-mentioned scenario, the application event callback will relay the event to the application 
-              task. Generally, the application needs to do nothing, and you can do whatever you want, e.g., print a log.
-
-        In step 4.2, the Wi-Fi connection may fail because, for example, the password is wrong, or the AP is not found. 
-        In a case like this, WIFI_EVENT_STA_DISCONNECTED will arise and the reason for such a failure will be provided. 
-        For handling events that disrupt Wi-Fi connection, please refer to phase 6.
-
-    5. Wi-Fi 'Got IP' Phase
-
-        5.1 - Once the DHCP client is initialized in step 4.2, the got IP phase will begin.
-        5.2 - If the IP address is successfully received from the DHCP server, then IP_EVENT_STA_GOT_IP will arise and 
-              the event task will perform common handling.
-        5.3 - In the application event callback, IP_EVENT_STA_GOT_IP is relayed to the application task. For LwIP-based 
-              applications, this event is very special and means that everything is ready for the application to begin its 
-              tasks, e.g., creating the TCP/UDP socket. A very common mistake is to initialize the socket before 
-              IP_EVENT_STA_GOT_IP is received. DO NOT start the socket-related work before the IP is received.
-        
-    6. Wi-Fi Disconnect Phase
-
-        6.1 - When the Wi-Fi connection is disrupted, e.g., the AP is powered off or the RSSI is poor, 
-              WIFI_EVENT_STA_DISCONNECTED will arise. This event may also arise in phase 3. Here, the event task will notify
-              the LwIP task to clear/remove all UDP/TCP connections. Then, all application sockets will be in a wrong status.
-              In other words, no socket can work properly when this event happens.
-        6.2 - In the scenario described above, the application event callback function relays WIFI_EVENT_STA_DISCONNECTED 
-              to the application task. The recommended actions are: 1) call esp_wifi_connect() to reconnect the Wi-Fi, 
-              2) close all sockets, and 3) re-create them if necessary. For details, please refer to WIFI_EVENT_STA_DISCONNECTED.
-
-    7. Wi-Fi IP Change Phase
-
-        7.1 - If the IP address is changed, the IP_EVENT_STA_GOT_IP will arise with "ip_change" set to true.
-        7.2 - This event is important to the application. When it occurs, the timing is good for closing all created sockets and recreating them.
-
-    8. Wi-Fi Deinit Phase
-    
-        8.1 - Call esp_wifi_disconnect() to disconnect the Wi-Fi connectivity.
-        8.2 - Call esp_wifi_stop() to stop the Wi-Fi driver.
-        8.3 - Call esp_wifi_deinit() to unload the Wi-Fi driver.
-
-    */
-
-    // or esp_netif_create_default_wifi_sta()
-
 
 /*========================================= END FILE ============================================*/

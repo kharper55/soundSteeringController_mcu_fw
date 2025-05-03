@@ -19,14 +19,13 @@ extern "C" {
 #include <stdio.h>
 #include "esp_log.h"
 #include "esp_system.h"
-#include "esp_mac.h" // TOOL CHANGE INCLUSION 03/10/2025
+#include "esp_mac.h" // TOOL CHANGE INCLUSION 03/10/2025 for v5.1.1->v5.1.6
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 #include "sdkconfig.h"
 #include <string.h>
-
 #include <ctype.h>
-
 #include "rom/crc.h"            // For crc32 calculations
 
 // Pin Defines
