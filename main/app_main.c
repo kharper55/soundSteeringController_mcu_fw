@@ -508,6 +508,16 @@ static void i2c_task(void * pvParameters) {
         //        ESP_LOGI(TAG, "NACK OR BUS BUSY");
         //    }
         //}
+
+
+        // For initialization purposes we might want to sweep
+        // the digipot and obtain a profile for Vo vs. RDAC counts,
+        // then we can normalize this curve according to some 
+        // equation which relates voltage, array output sound pressure level.
+        // convert SPL for ultrasound to audio SPL after demodulation (fudge factor? intermod levels?)
+        // Then scale SPL in dB to perceivable human hearing range. So adjusting
+        // volume may not linearly incr/decr the digipot and more accurately change the volume
+
         vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
     
@@ -630,7 +640,7 @@ static void wifi_task(void * pvParameters) {
 
     esp_err_t ret = ESP_OK;
 
-    ret = app_wifi_init(TAG, mode); // currently causing a watchdog issue or something
+    ret = app_wifi_init(TAG, WIFI_MODE, USE_NAT_IF_APSTA); // currently causing a watchdog issue or something
         
     // This needs to be one big event handler... Disconnects, actions, etc.
     // Generally, it is easy to write code in "sunny-day" scenarios, such as WIFI_EVENT_STA_START 
@@ -659,78 +669,7 @@ static void wifi_task(void * pvParameters) {
 
         // Check if app_wifi_init() succeeded
         if (ret != ESP_OK) { 
-
             ESP_LOGI(TAG, "!An error occured (err no. %d)!", ret);     
-
-            // Handle error codes. Refer to error code esp_err.h
-            switch(ret) {
-                
-                // SSID is invalid
-                case(ESP_ERR_WIFI_SSID):
-                    ESP_LOGI(TAG, "SSID is invalid.");  
-                    break;
-
-                // Password is invalid
-                case(ESP_ERR_WIFI_PASSWORD):
-                    ESP_LOGI(TAG, "Password is invalid.");  
-                    break;
-
-                // WiFi driver was not installed by esp_wifi_init()
-                case(ESP_ERR_WIFI_NOT_INIT):
-                    ESP_LOGI(TAG, "WiFi driver was not installed.");  
-                    break;
-
-                // WiFi driver was not started by esp_wifi_start()
-                case(ESP_ERR_WIFI_NOT_STARTED):
-                    ESP_LOGI(TAG, "WiFi driver was not started.");
-                    break;
-                
-                // Default event loop has already been created
-                case(ESP_ERR_INVALID_STATE):
-                    ESP_LOGI(TAG, "Default event loop has already been created.");
-                    break;
-
-                // Some function called inside the API was passed invalid argument
-                // User should check if the wifi related config is correc
-                case(ESP_ERR_INVALID_ARG):
-                    ESP_LOGI(TAG, "An API function was passed an invalid argument.");
-                    break;
-
-                // WiFi internal error, station or soft-AP control block wrong
-                case(ESP_ERR_WIFI_CONN):
-                    ESP_LOGI(TAG, "WiFi internal error.");
-                    break;
-
-                // WiFi mode error
-                case(ESP_ERR_WIFI_MODE):
-                    ESP_LOGI(TAG, "WiFi mode error.");
-                    break;
-
-                // WiFi interface error
-                case(ESP_ERR_WIFI_IF):
-                    ESP_LOGI(TAG, "WiFi interface error.");
-                    break;
-                                
-                // Out of memory when calling a WiFi API function
-                case(ESP_ERR_NO_MEM):
-                    ESP_LOGI(TAG, "Out of memory when calling a WiFi API function.");
-                    break;
-
-                // WiFi internal NVS module error
-                case(ESP_ERR_WIFI_NVS):
-                    ESP_LOGI(TAG, "Internal NVS module error.");
-                    break;
-                
-                // One of the ESP-IDF API function calls in app_wifi_init() failed...
-                case(ESP_FAIL):
-                    ESP_LOGI(TAG, "One of the ESP-IDF API function calls in app_wifi_init() failed.");
-                    break;
-
-                // Non-descript error handler
-                default:
-                    ESP_LOGI(TAG, "No specific function handler exists.");
-                    break;
-            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(10)); // i think this allows scheduler some freedom if i recall correctly
@@ -744,9 +683,9 @@ static void wifi_task(void * pvParameters) {
 void app_main(void) {
 
     static const bool VERBOSE = false;
-    
     const static char *TAG = "APP";
     esp_err_t ret;
+    //esp_log_level_set("*", ESP_LOG_WARN); // Set logging to warnings and errors only. Exclude info.
 
     app_uart2_init(U2_BAUD); // not sure i want to call this here
     ESP_LOGI(TAG, "UART2 initialized successfully."); 
@@ -834,7 +773,7 @@ void app_main(void) {
 
     wifiParams_t wifiParams = {
         .TAG = "WIFI",
-        .mode = WIFI_MODE_APSTA
+        .mode = WIFI_MODE_AP /*WIFI_MODE_APSTA*/
     };
 
     gpioParams_t gpioParams = { // CURRENTLY UNUSED

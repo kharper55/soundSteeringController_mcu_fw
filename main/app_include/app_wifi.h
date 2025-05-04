@@ -30,12 +30,18 @@ extern "C" {
 // Pin Defines
 
 // Settings
+
+#define WIFI_MODE WIFI_MODE_STA /*WIFI_MODE_AP, WIFI_MODE_APSTA, WIFI_MODE_STA*/
+#define USE_NAT_IF_APSTA 1
+
+// ESP32 SoftAP Credentials
 #define AP_WIFI_SSID             "34_TREM_ESP_NAT_TEST"
 #define AP_WIFI_PASS             "11111111"
 #define AP_WIFI_CHANNEL          0
 #define AP_MAX_STA_CONN          4
 
-#define STA_WIFI_SSID            "TMOBILE-6CB9"
+// User WIFI credentials
+#define STA_WIFI_SSID            "TMOBILE-6CB9" 
 #define STA_WIFI_PASS            "jizz1234"
 #define STA_WIFI_MAX_RETRY       10
 #define STA_WIFI_CONNECTED_BIT   BIT0
@@ -46,26 +52,20 @@ extern "C" {
 // Macros
 
 // Typedefs
+typedef struct {
+    bool NAT_enabled;
+    wifi_mode_t mode;
+} wifi_sta_context_t;
 
 // General parameters for the FreeRTOS WiFi task
 typedef struct {
     char * TAG;
     wifi_mode_t mode;
-    //adc_oneshot_unit_handle_t * handle;
-    //adc_cali_handle_t * cali_handle;
-    //adc_unit_t unit;
-    //adc_channel_t channel;
-    //adc_atten_t atten;
-    //adc_filter_t * filt;
-    //int delay_ms;
-    //int * vraw;
-    //int * vcal;
-    //int * vfilt;
 } wifiParams_t;
 
 // User functions
 esp_err_t app_wifi_deinit(void);
-esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode);
+esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode, bool NATen);
 
 #ifdef __cplusplus
 }
