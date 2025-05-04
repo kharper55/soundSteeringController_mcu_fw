@@ -13,8 +13,6 @@ static EventGroupHandle_t sta_evt_grp;
 static int retry_num = 0;
 
 /*---------------------------------------------------------------
-    app_esp_ip_napt_init(void)
-
     Initializes Network Address Port Translation (NAPT) to enable
     routing of traffic from devices connected to the ESP32's
     Wi-Fi SoftAP (AP interface) through the Station (STA) interface,
@@ -87,9 +85,6 @@ static esp_err_t app_esp_ip_napt_init(void) {
 }
 
 /*---------------------------------------------------------------
-    ap_wifi_event_handler(void* arg, esp_event_base_t event_base,
-                        int32_t event_id, void* event_data)
-
     Event handler for Wi-Fi SoftAP events. This function conforms
     to the standard ESP-IDF event handler signature.
 
@@ -114,9 +109,6 @@ static void ap_wifi_event_handler(void* arg, esp_event_base_t event_base,
 }
 
 /*---------------------------------------------------------------
-    sta_wifi_event_handler(void* arg, esp_event_base_t event_base,
-                        int32_t event_id, void* event_data)
-
     Event handler for Station (STA) mode events and IP events.
     Handles connection state changes and IP acquisition.
     Handles events related to the ESP32 connecting to an external 
@@ -189,14 +181,12 @@ static void sta_wifi_event_handler(void* arg, esp_event_base_t event_base,
             }
 
             // If in APSTA mode and NAT is enabled, propagate DNS to AP and start NAPT
-            ESP_ERROR_CHECK(app_esp_ip_napt_init()); // Both AP and STA interfaces must be initialized!
+            ESP_ERROR_CHECK(app_esp_ip_napt_init()); 
         }
     }
 }
 
 /*---------------------------------------------------------------
-    esp_err_t app_wifi_deinit(void)
-
     Deinitialize Wi-Fi and free associated resources.
 
     This function disconnects from any connected Wi-Fi networks, 
@@ -228,8 +218,6 @@ esp_err_t app_wifi_deinit(void) {
 }
 
 /*---------------------------------------------------------------
-    esp_err_t app_wifi_init(wifi_mode_t mode)
-
     Initialize WiFi in AP, STA, or APSTA mode.
 
     AP Mode - Create own Wi-Fi network (SSID), acting as a hotspot.
@@ -292,7 +280,7 @@ esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode, bool NATen) {
     esp_event_handler_instance_t sta_any_id;
     esp_event_handler_instance_t sta_got_ip;
     if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA) {
-        wifi_sta_context_t *sta_ctx = malloc(sizeof(wifi_sta_context_t));
+        wifi_sta_context_t *sta_ctx = malloc(sizeof(wifi_sta_context_t)); // dangling.. pass its own pointer loc as a member?
         if (!sta_ctx) return ESP_ERR_NO_MEM;
         sta_ctx->NAT_enabled = NATen;
         sta_ctx->mode = mode;

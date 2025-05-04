@@ -806,7 +806,6 @@ void app_main(void) {
     // Main loop toggles heartbeat to indicate scheduler keep-up
     while(1) {
 
-        ESP_LOGI("", "");
         ESP_LOGI(TAG, "Count: %ld", count);
 
         // move below to gpio task
