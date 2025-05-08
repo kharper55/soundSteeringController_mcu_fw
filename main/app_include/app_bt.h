@@ -42,6 +42,11 @@ extern "C" {
 
 // Typedefs
 
+// General parameters for the FreeRTOS BT task
+typedef struct {
+    char * TAG;
+} btParams_t;
+
 // User functions
 esp_err_t app_bt_init(void);
 

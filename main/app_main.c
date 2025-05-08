@@ -79,20 +79,31 @@ extern const char * device_state_names[2]; // Defined in app_gpio.h
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task
     
-    Generic oneshot adc task for various MCU adc channels
+    Generic oneshot ADC task for various MCU ADC channels
 ---------------------------------------------------------------*/
+
+/** 
+ * @brief ADC Task
+ *
+ *     - Handles ADC operation in one-shot or continuous mode.
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
 static void adc_task(void * pvParameters) {
 
     const bool VERBOSE_FLAG = true;
     esp_err_t err = ESP_OK;
 
     // Unique parameters per ADC channel
-    adcOneshotParams_t * params = (adcOneshotParams_t *) pvParameters;
+    adcParams_t * params = (adcParams_t *) pvParameters;
     const char * TAG = params->TAG;
     adc_oneshot_unit_handle_t * adc_handle = params->handle;
     adc_cali_handle_t * cali_handle = params->cali_handle;
-    adc_unit_t unit = params->unit;
-    adc_channel_t chan = params->channel;
+    adc_unit_t unit = params->unit;       // 2x units in ESP32
+    adc_channel_t chan = params->channel; // Numerous channels per unit
     adc_atten_t atten = params->atten;
     int delay_ms = params->delay_ms;
     adc_filter_t * filt = params->filt;
@@ -142,6 +153,17 @@ static void adc_task(void * pvParameters) {
 /*---------------------------------------------------------------
     UART2 TX FreeRTOS task
 ---------------------------------------------------------------*/
+
+/** 
+ * @brief UART2 TX Task
+ *
+ *     - Handles UART2 TX peripheral communications with the handheld remote.
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
 static void tx_task(void *arg) {
     // Work is yet to be done here to complete the communication circle
     // from remote to controller
@@ -156,8 +178,21 @@ static void tx_task(void *arg) {
 /*---------------------------------------------------------------
     UART2 RX FreeRTOS task
 ---------------------------------------------------------------*/
-// We are expecting some fixed max byte width (but varies among transaction types depending on leading hex-code).
-// We also must pop a known fixed number of crc32 bytes (8) off the end upon reception and compare with a local computation upon the data string
+// We are expecting some fixed max byte width (but varies among transaction 
+// types depending on leading hex-code).
+// We also must pop a known fixed number of crc32 bytes (8) off the end upon 
+// reception and compare with a local computation upon the data string
+
+/** 
+ * @brief UART2 RX Task
+ *
+ *     - Handles UART2 RX peripheral communications with the handheld remote.
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
 static void rx_task(void * pvParameters) {
 
     static const bool VERBOSE = false;
@@ -170,7 +205,7 @@ static void rx_task(void * pvParameters) {
     uint8_t * data = (uint8_t*) malloc(RX_BUF_SIZE+1);
 
     // Parameters for U2Rx
-    u2rxParams_t * params = (u2rxParams_t *) pvParameters;
+    uartParams_t * params = (uartParams_t *) pvParameters;
     const char * TAG = params->TAG;
     uint8_t * data2 = params->data_buff;
     size_t data_buff_len = params->buff_len;
@@ -186,6 +221,9 @@ static void rx_task(void * pvParameters) {
 
     int decimal = 0;
     char hex[2] = {0x00, 0x00};
+
+    app_uart2_init(U2_BAUD); // not sure i want to call this here
+    ESP_LOGI(TAG, "UART2 initialized successfully."); 
 
     /*typedef enum serial_cmds_t {
         NOP                      = 0x0,
@@ -273,7 +311,8 @@ static void rx_task(void * pvParameters) {
                         *flag = true;
                         // Pass along command code, decode in microblaze
 
-                        if (VERBOSE) ESP_LOGI(TAG, "Changed audio channel from %d to %d!", deviceAudioChan, !deviceAudioChan);
+                        if (VERBOSE) ESP_LOGI(TAG, "Changed audio channel from %d to %d!", 
+                            deviceAudioChan, !deviceAudioChan);
 
                         deviceAudioChan = !deviceAudioChan;
                         break;
@@ -316,7 +355,8 @@ static void rx_task(void * pvParameters) {
                             decimal = (decimal << 4) | hex2dec(hex[i]);
                         }
                         change = (localDigipotVal != decimal) ? true : false;
-                        ESP_LOGI(TAG, "OLD: %d, NEW: %d, CONV: %d", localDigipotVal, decimal, PCT_TO_INV_CNT(decimal));
+                        ESP_LOGI(TAG, "OLD: %d, NEW: %d, CONV: %d", 
+                            localDigipotVal, decimal, PCT_TO_INV_CNT(decimal));
                         
                         
                         //xSemaphoreTake(xSemaphore, portMAX_DELAY);
@@ -355,7 +395,8 @@ static void rx_task(void * pvParameters) {
                                 decimal = (decimal << 4) | hex2dec(hex[i]);
                             }
                             change = (localDigipotVal != decimal) ? true : false;
-                            ESP_LOGI(TAG, "OLD: %d, NEW: %d, CONV: %d", localDigipotVal, decimal, PCT_TO_INV_CNT(decimal));
+                            ESP_LOGI(TAG, "OLD: %d, NEW: %d, CONV: %d", 
+                                localDigipotVal, decimal, PCT_TO_INV_CNT(decimal));
                             if (xSemaphoreTake(xSemaphore, 10) == pdTRUE) {
                                 RDAC_VAL = PCT_TO_INV_CNT(decimal);  // convert the range 0 to 100 to 1023 to 0
                                 xSemaphoreGive(xSemaphore);
@@ -388,6 +429,17 @@ static void rx_task(void * pvParameters) {
 /*---------------------------------------------------------------
     I2C FreeRTOS task (for AD5272 digipot)
 ---------------------------------------------------------------*/
+
+/** 
+ * @brief I2C Master Task
+ *
+ *     - Handles I2C communication for devices on I2C bus.
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
 static void i2c_task(void * pvParameters) {
 
     const bool VERBOSE = false;
@@ -424,10 +476,12 @@ static void i2c_task(void * pvParameters) {
     ad5272_sw_reset();
     while(1) {
 
+        // defo needs to be cleaned up, why r we reading every cycle of this task?
         ret = ad5272_rdac_reg_read(&rx_buff);
         if (VERBOSE) {
             if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "read RDAC bits: %d counts (%.2f ohms).", rx_buff[0] << 8 | rx_buff[1], AD5272_CNT_TO_OHM(rx_buff[0], rx_buff[1]));
+                ESP_LOGI(TAG, "read RDAC bits: %d counts (%.2f ohms).", 
+                    rx_buff[0] << 8 | rx_buff[1], AD5272_CNT_TO_OHM(rx_buff[0], rx_buff[1]));
             } else {
                 ESP_LOGI(TAG, "NACK OR BUS BUSY");
             }
@@ -518,6 +572,12 @@ static void i2c_task(void * pvParameters) {
         // Then scale SPL in dB to perceivable human hearing range. So adjusting
         // volume may not linearly incr/decr the digipot and more accurately change the volume
 
+        
+        // Wow. No clue how this function works lol. Wtf was i doing
+        //get_drive_temp(&ntc_temp, vntc_filt);
+        //ESP_LOGI(TAG, "Driver SMPS inductor temperature is %s", temperature_names[ntc_temp]);  
+
+
         vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
     
@@ -529,6 +589,17 @@ static void i2c_task(void * pvParameters) {
 /*---------------------------------------------------------------
     SPI Master FreeRTOS Task (Full-duplex comms to Artix7)
 ---------------------------------------------------------------*/
+
+/** 
+ * @brief SPI Master Task
+ *
+ *     - Handles SPI Master Communication with Artix7
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
 static void spi_task(void * pvParameters) {
 
     const bool VERBOSE = true;
@@ -556,8 +627,10 @@ static void spi_task(void * pvParameters) {
             ret = spi_master_start_transaction(*handle, tx_buff, rx_buff, (int)buff_size);
             if(VERBOSE) {
                 if (ret == ESP_OK) {
-                    ESP_LOGI(TAG, "Wrote 0x%08X.", (tx_buff[0] << 24) | (tx_buff[1] << 16) | (tx_buff[2] << 8) | (tx_buff[3]));  
-                    ESP_LOGI(TAG, "Read 0x%08X.", (rx_buff[3] << 24) | (rx_buff[2] << 16) | (rx_buff[1] << 8) | (rx_buff[0]));     
+                    ESP_LOGI(TAG, "Wrote 0x%08X.", 
+                        (tx_buff[0] << 24) | (tx_buff[1] << 16) | (tx_buff[2] << 8) | (tx_buff[3]));  
+                    ESP_LOGI(TAG, "Read 0x%08X.", 
+                        (rx_buff[3] << 24) | (rx_buff[2] << 16) | (rx_buff[1] << 8) | (rx_buff[0]));     
                 } else {
                     ESP_LOGI(TAG, "TRANSACTION FAILED OR BUS BUSY");
                 }    
@@ -569,9 +642,21 @@ static void spi_task(void * pvParameters) {
     }
 }
 
+
 /*---------------------------------------------------------------
     GPIO Task
 ---------------------------------------------------------------*/
+
+/** 
+ * @brief GPIO Task
+ *
+ *     - Handles GPIO-related application functionality.
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
 static void gpio_task(void * pvParameters) {
     /*
     const bool VERBOSE = true;
@@ -591,34 +676,80 @@ static void gpio_task(void * pvParameters) {
     const char * TAG = params->TAG;
 
     esp_err_t ret = ESP_OK;
+
+    count = 0; // To retain functionality of old config. Unsure if FPGA will freakout without this.
+
+    ret = app_gpio_init(); // not sure i want to call this here
         
     while(1) {
 
-        /*
-        if(*flag) {
+        if (count == 2) { 
+            // Drive this pin low if MCU needs to shut down the array for whatever reason
+            // ESP32 should relay back to remote if requested channel is not enabled, and not allow switching of the channel
+            gpio_set_level(PWM_BUFF_EN_PIN, 0); // These are driven in the u2rx task according to input commands received
+            gpio_set_level(LOAD_SWITCH_EN_PIN, 0);
+            if (ret == ESP_OK) ESP_LOGI(TAG, "MCU PWM enable has been set. FPGA must follow suit.");
+            else ESP_LOGI(TAG, "Issue driving GPIO %d. MCU PWM enable has not been set.", PWM_BUFF_EN_PIN);
 
-            ret = spi_master_start_transaction(*handle, tx_buff, rx_buff, (int)buff_size);
-            if(VERBOSE) {
-                if (ret == ESP_OK) {
-                    ESP_LOGI(TAG, "Wrote 0x%08X.", (tx_buff[0] << 24) | (tx_buff[1] << 16) | (tx_buff[2] << 8) | (tx_buff[3]));  
-                    ESP_LOGI(TAG, "Read 0x%08X.", (rx_buff[3] << 24) | (rx_buff[2] << 16) | (rx_buff[1] << 8) | (rx_buff[0]));     
-                } else {
-                    ESP_LOGI(TAG, "TRANSACTION FAILED OR BUS BUSY");
-                }    
-            }
-            *flag = false;
+            break; // Leave this loop and enter the next
+        } 
+        
+        count++;
+    }
 
-        }
-        */
+    while(1) {
+
+        ESP_LOGI(TAG, "AUX: %s", gpio_status_names[gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA channel analog signal input
+        ESP_LOGI(TAG, "ECM: %s", gpio_status_names[gpio_get_level(ECM_SW_PIN)]);  
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-
 }
 
 /*---------------------------------------------------------------
-    HTTP Webserver Task
+    I2S Master Task
 ---------------------------------------------------------------*/
+
+/** 
+ * @brief I2S Master Task
+ *
+ *     - Handles I2S Master Communication of audio to Artix7.
+ * 
+ * @param pvParamaters
+ * 
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
+static void i2s_task(void * pvParameters) {
+
+    app_i2s_init(); 
+
+    while(1) {
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+    }
+}
+
+/*---------------------------------------------------------------
+    WiFi Task
+---------------------------------------------------------------*/
+
+/** 
+ * @brief WiFi Task
+ *
+ *     - Handles setup of WiFi drivers using IDF API for AP, STA 
+ *       or AP/STA mode with NAT interface forwarding. Handles
+ *       captive portal hosting and webserver for control UI.
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
 static void wifi_task(void * pvParameters) {
     /*
     const bool VERBOSE = true;
@@ -642,6 +773,11 @@ static void wifi_task(void * pvParameters) {
 
     ret = app_wifi_init(TAG, WIFI_MODE, USE_NAT_IF_APSTA); // currently causing a watchdog issue or something
         
+    // Check if app_wifi_init() succeeded
+    if (ret != ESP_OK) { 
+        ESP_LOGI(TAG, "!An error occured (err no. %d)!", ret);     
+    }
+
     // This needs to be one big event handler... Disconnects, actions, etc.
     // Generally, it is easy to write code in "sunny-day" scenarios, such as WIFI_EVENT_STA_START 
     // and WIFI_EVENT_STA_CONNECTED. The hard part is to write routines in "rainy-day" scenarios, 
@@ -667,33 +803,90 @@ static void wifi_task(void * pvParameters) {
     */
     while(1) {
 
-        // Check if app_wifi_init() succeeded
-        if (ret != ESP_OK) { 
-            ESP_LOGI(TAG, "!An error occured (err no. %d)!", ret);     
-        }
+        // AP, STA handlers take care of everything
 
-        vTaskDelay(pdMS_TO_TICKS(10)); // i think this allows scheduler some freedom if i recall correctly
+        vTaskDelay(pdMS_TO_TICKS(100)); // No need to be occupying CPU if doing nothing here
     }
 
     app_wifi_deinit(); // Should never get here
+}
+
+/*---------------------------------------------------------------
+    Bluetooth Task
+---------------------------------------------------------------*/
+
+/** 
+ * @brief BT Task
+ *
+ *     - Handles BT operation.
+ * 
+ * @param pvParamaters
+ * 
+ *
+ * @return
+ * 
+ *     - Nothing
+ *
+*/
+static void bt_task(void * pvParameters) {
+
+    app_bt_init();
+
+    while(1) {
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+    }
 }
 
 /*============================================ APP_MAIN ============================================*/
 
 void app_main(void) {
 
-    static const bool VERBOSE = false;
+    //static const bool VERBOSE = false;
     const static char *TAG = "APP";
     esp_err_t ret;
+
+    const char * i2c_task_tag = "MI2C_C0";          // APP_CPU (1)
+    const char * spi_task_tag = "MSPI_C0";          // APP_CPU (1)
+    const char * vntc_adc_task_tag = "ADC_VNTC_C0"; // APP_CPU (1)
+    const char * vdrv_adc_task_tag = "ADC_VDRV_C0"; // APP_CPU (1)
+    const char * i2s_task_tag = "MI2S_C0";          // APP_CPU (1)
+    const char * gpio_task_tag = "GPIO_C0";         // APP_CPU (1)
+    const char * uart2_rx_task_tag = "U2RX_C0";     // APP_CPU (1)
+    const char * uart2_tx_task_tag = "U2TX_C0";     // APP_CPU (1)
+    const char * wifi_task_tag = "WIFI_C1";         // PRO_CPU (0)
+    const char * bt_task_tag = "BT_C1";             // PRO_CPU (0)
+
+    adc_oneshot_unit_handle_t adc1_handle = NULL;
+    adc_cali_handle_t adc1_cali_chan0_handle = NULL;
+    adc_cali_handle_t adc1_cali_chan1_handle = NULL;
+
+    // ADC2 is not currently configured for use on this set of boards (jumper setting)
+    //adc_oneshot_unit_handle_t adc2_handle = NULL; 
+    //adc_cali_handle_t adc2_cali_handle = NULL;
+
+    spi_device_handle_t spi;
+
+    // This struct is passed to the I2C params into the I2C task and the members' memory 
+    // locations are updated from there for readout elsewhere
+    digipot_status_t digipotStatus = {
+        .rdacReg = &rdacReg,
+        .ctrlReg = &ctrlReg,
+        .otpReg = &otpReg,
+        .otpAddr = &otpAddr
+    };
+
+    digipot_ctrl_t digipotCtrl = {
+        .action = &digipot_action,      // This action is to be update by other tasks
+        .wiperValue = &digipot_value,   // This value is only used for updating the RDAC register
+    };
+    
     //esp_log_level_set("*", ESP_LOG_WARN); // Set logging to warnings and errors only. Exclude info.
 
-    app_uart2_init(U2_BAUD); // not sure i want to call this here
-    ESP_LOGI(TAG, "UART2 initialized successfully."); 
-    app_gpio_init(); // not sure i want to call this here
-    app_i2s_init();  // not sure i want to call this here
-
-    u2rxParams_t u2rxParams = {
-        .TAG = "U2R",
+    // need also a u2txParams
+    uartParams_t u2rxParams = {
+        .TAG = uart2_rx_task_tag,
         .data_buff = &spi_tx_data, // Data comes from U2Rx, and goes to SPI master task, then sent to artix7
         .buff_len = 4,
         .flag = &artix7_send_flag,
@@ -702,17 +895,8 @@ void app_main(void) {
         .delay_ms = 10
     };
 
-    adc_oneshot_unit_handle_t adc1_handle = NULL;
-    adc_cali_handle_t adc1_cali_chan0_handle = NULL;
-    adc_cali_handle_t adc1_cali_chan1_handle = NULL;
-
-    spi_device_handle_t spi;
-
-    //adc_oneshot_unit_handle_t adc2_handle = NULL; // ADC2 is not currently configured for use on this set of boards (jumper setting)
-    //adc_cali_handle_t adc2_cali_handle = NULL;
-
-    adcOneshotParams_t vdriveParams = {
-        .TAG = "VDRIVE",
+    adcParams_t vdriveParams = {
+        .TAG = vdrv_adc_task_tag,
         .handle = &adc1_handle,
         .cali_handle = &adc1_cali_chan0_handle,
         .unit = ADC_UNIT_1,
@@ -725,8 +909,8 @@ void app_main(void) {
         .vfilt = &vdrive_filt
     };
 
-    adcOneshotParams_t vntcParams = {
-        .TAG = "VNTC",
+    adcParams_t vntcParams = {
+        .TAG = vntc_adc_task_tag,
         .handle = &adc1_handle,
         .cali_handle = &adc1_cali_chan1_handle,
         .unit = ADC_UNIT_1,
@@ -740,7 +924,7 @@ void app_main(void) {
     };
 
     spiMasterParams_t mspiParams = {
-        .TAG = "MSPI",
+        .TAG = spi_task_tag,
         .handle = &spi,
         .tx_buff = &spi_tx_data, // We're fixing at 4 byte transactions
         .rx_buff = &spi_rx_data,
@@ -749,21 +933,8 @@ void app_main(void) {
         .delay_ms = 10
     };
 
-    // This struct is passed to the I2C params into the I2C task and the members' memory locations are updated from there for readout elsewhere
-    digipot_status_t digipotStatus = {
-        .rdacReg = &rdacReg,
-        .ctrlReg = &ctrlReg,
-        .otpReg = &otpReg,
-        .otpAddr = &otpAddr
-    };
-
-    digipot_ctrl_t digipotCtrl = {
-        .action = &digipot_action,  // This action is to be update by other tasks
-        .wiperValue = &digipot_value,   // This value is only used for updating the RDAC register
-    };
-
     i2cMasterParams_t mi2cParams = {
-        .TAG = "MI2C",
+        .TAG = i2c_task_tag,
         .status = &digipotStatus,
         .ctrl = &digipotCtrl,
         .updateFlag = &ad5272_update_flag,
@@ -772,72 +943,57 @@ void app_main(void) {
     };
 
     wifiParams_t wifiParams = {
-        .TAG = "WIFI",
+        .TAG = wifi_task_tag,
         .mode = WIFI_MODE_AP /*WIFI_MODE_APSTA*/
     };
 
     gpioParams_t gpioParams = { // CURRENTLY UNUSED
-        .TAG = "GPIO"
+        .TAG = gpio_task_tag
+    };
+
+    btParams_t btParams = {
+        .TAG = bt_task_tag
     };
     
     // ===== Application Task Declarations ===== //
-
-    // add dedicated gpio task. need gpioParams_t
 
     xSemaphore = xSemaphoreCreateMutex(); // Not sure if this was meant to stay.
 
     // Note that a fast loop will hog resources and watchdog will not be kicked, causing a soft reset.
  
     // Low speed peripheral functions (APP_CPU)
-    // Tags should specify the core
     // Make task priorities and cores global #defines at top of this file
-    xTaskCreatePinnedToCore(rx_task,  "uart_rx_task", 1024*8, (void *)&u2rxParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // This task need not have high priority without the handheld remote connection. A configurable pulldown might be a good option to set this on startup.
-    xTaskCreatePinnedToCore(tx_task,  "uart_tx_task", 1024*4, NULL /*(void *)&u2txParams*/, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // Only invoke this task when explicitly requested by the remote
-    xTaskCreatePinnedToCore(spi_task, "spi_task",  1024*2, (void *)&mspiParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(i2c_task, "i2c_task",  1024*4, (void *)&mi2cParams, configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(adc_task, "vdrive_task",  1024*4, (void *)&vdriveParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(adc_task, "vntc_task",  1024*4, (void *)&vntcParams, configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(gpio_task, "gpio_task",  1024*2, (void *)&gpioParams, configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(rx_task,  uart2_rx_task_tag, 1024*8, (void *)&u2rxParams, 
+        configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // This task need not have high priority without the handheld remote connection. A configurable pulldown might be a good option to set this on startup.
+    xTaskCreatePinnedToCore(tx_task,  uart2_tx_task_tag, 1024*4, NULL /*(void *)&u2txParams*/, 
+        configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // Only invoke this task when explicitly requested by the remote
+    xTaskCreatePinnedToCore(spi_task, spi_task_tag,  1024*2, (void *)&mspiParams, 
+        configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(i2c_task, i2c_task_tag,  1024*4, (void *)&mi2cParams, 
+        configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(adc_task, vdrv_adc_task_tag,  1024*4, (void *)&vdriveParams, 
+        configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(adc_task, vntc_adc_task_tag,  1024*4, (void *)&vntcParams, 
+        configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(gpio_task, gpio_task_tag,  1024*2, (void *)&gpioParams, 
+        configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(i2s_task, gpio_task_tag,  1024*2, NULL /*(void *)&i2sParams*/, 
+        configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
     
-    // RF (webserver via IEE802.11), (PRO_CPU)
-    // Tags should specify the core
-    xTaskCreatePinnedToCore(wifi_task, "wifi_task",  1024*8, (void *)&wifiParams, configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
+    // RF (webserver via IEE802.11), BT (PRO_CPU)
+    xTaskCreatePinnedToCore(wifi_task, wifi_task_tag,  1024*4, (void *)&wifiParams, 
+        configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
+    xTaskCreatePinnedToCore(bt_task, bt_task_tag,  1024*4, (void *)&wifiParams, 
+        configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
+
+    vTaskDelay(pdMS_TO_TICKS(250)); // Give all the various peripheral init routines time to execute
 
     // Main loop toggles heartbeat to indicate scheduler keep-up
+    // By default, app_main() runs on Core 1 (APP_CPU)
     while(1) {
 
-        ESP_LOGI(TAG, "Count: %ld", count);
+        app_heartbeat_toggle(); // this needs to have gpio init called
 
-        // move below to gpio task
-
-        if (count == 2) { 
-            // Drive this pin low if MCU needs to shut down the array for whatever reason
-            // ESP32 should relay back to remote if requested channel is not enabled, and not allow switching of the channel
-            gpio_set_level(PWM_BUFF_EN_PIN, 0); // These are driven in the u2rx task according to input commands received
-            gpio_set_level(LOAD_SWITCH_EN_PIN, 0);
-
-            if (VERBOSE) {
-                if (ret == ESP_OK) {
-                    ESP_LOGI(TAG, "MCU PWM enable has been set. FPGA must follow suit.");
-                }
-                else {
-                    ESP_LOGI(TAG, "Issue driving GPIO %d. MCU PWM enable has not been set.", PWM_BUFF_EN_PIN);
-                }
-            }
-        } 
-        
-        get_drive_temp(&ntc_temp, vntc_filt);
-
-        if (VERBOSE) {
-            ESP_LOGI(TAG, "TEMP: %s", temperature_names[ntc_temp]);
-            ESP_LOGI(TAG, "AUX: %s", gpio_status_names[gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA channel analog signal input
-            ESP_LOGI(TAG, "ECM: %s", gpio_status_names[gpio_get_level(ECM_SW_PIN)]);    
-        }
-
-        count++;
-        app_heartbeat_toggle();
-
-        //vTaskDelay(pdMS_TO_TICKS(1000));
         vTaskDelay(HEARTBEAT_BLINK_PERIOD_MS / portTICK_PERIOD_MS);
     }
 }

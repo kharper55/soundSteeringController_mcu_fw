@@ -130,7 +130,7 @@ float adc_filter(int value, adc_filter_t * filterObject) {
 }
 
 /*---------------------------------------------------------------
-    ADC Unit Continuous Read Init
+    Qualitatively describe the ADC temperature reading
 ---------------------------------------------------------------*/
 void get_drive_temp(adc_temp_t * temperature, int vmeas) {
     adc_temp_t * tempStateHandle = temperature;
@@ -146,7 +146,7 @@ void get_drive_temp(adc_temp_t * temperature, int vmeas) {
     else if (tempReading > 30) {    // Temp is between 30 & 50% of the max
         tempState = TEMP_ROOM;
     }   
-    else if (tempReading > 0) {    // Temp is between 0 & 30% of the max
+    else if (tempReading > 0) {     // Temp is between 0 & 30% of the max
         tempState = TEMP_COLD;
     }
     else {

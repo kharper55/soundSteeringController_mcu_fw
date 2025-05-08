@@ -56,6 +56,7 @@ typedef struct {
 } adc_filter_t;
 
 // General parameters for the ADC FreeRTOS task (for oneShot operation)
+// should factor this to include continuous mode operation stuff
 typedef struct {
     char * TAG;
     adc_oneshot_unit_handle_t * handle;
@@ -68,7 +69,7 @@ typedef struct {
     int * vraw;
     int * vcal;
     int * vfilt;
-} adcOneshotParams_t;
+} adcParams_t;
 
 // An enum-like type giving a more qualitative indication of the temperature measurement
 // from the ADC peripheral

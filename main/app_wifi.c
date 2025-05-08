@@ -4,6 +4,9 @@
     Date: 04/2025
     Details: Function and global definitions for WiFi-enabling peripheral FreeRTOS tasks.
 
+    Many ideas in this source code were adapted from https://github.com/Daniel-Wait/ESP32_wifi_nat/tree/main
+    Mainly sequencing and argument declaration for all the IDF functions
+
     Written using ESP-IDF v5.1.1 API. Built in 03/2025 using v5.1.2
 //==================================================================================================*/
 

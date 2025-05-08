@@ -47,6 +47,7 @@ typedef enum serial_cmds_t {
     REQUEST_INFO             = 0xE   // Hex code for requesting readback from the device
 };
 
+// need to factor this to include options for tx as well as rx
 typedef struct {
     const char * TAG;
     uint8_t * data_buff;
@@ -55,7 +56,7 @@ typedef struct {
     bool * flag2;           // for i2c, no time to explain
     uint16_t val;
     int delay_ms;
-} u2rxParams_t;
+} uartParams_t;
 
 extern const char * serial_cmd_names[7];
 
