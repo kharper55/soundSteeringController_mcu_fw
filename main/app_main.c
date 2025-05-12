@@ -71,10 +71,11 @@ uint16_t digipot_value = AD5272_RDAC_MID;
 bool artix7_send_flag = false;
 bool ad5272_update_flag = false;
 
-extern const char * temperature_names[5];  // Defined in app_adc.h. Might want to capitilize these
-extern const char * gpio_status_names[2];  // Defined in app_gpio.h
-extern const char * serial_cmd_names[7];   // Defined in app_uart2.h
-extern const char * device_state_names[2]; // Defined in app_gpio.h
+extern const char * temperature_names[5];      // Defined in app_adc.h. Might want to capitilize these
+extern const char * gpio_status_names[2];      // Defined in app_gpio.h
+extern const char * serial_cmd_names[7];       // Defined in app_uart2.h
+extern const char * device_state_names[2];     // Defined in app_utility.h
+extern const char * connection_state_names[2]; // Defined in app_utility.h
 
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task
@@ -113,6 +114,7 @@ static void adc_task(void * pvParameters) {
     
     adc_oneshot_init(adc_handle, unit, chan); // VPOTC adc16
     adc_calibration_init(unit, chan, atten, cali_handle);
+    ESP_LOGI(TAG, "ADC initialization complete.");
 
     while (1) {
         
@@ -133,7 +135,7 @@ static void adc_task(void * pvParameters) {
             err = adc_cali_raw_to_voltage(*cali_handle, *vraw, vcal);
             if (err == ESP_OK) {
 
-                *vfilt = adc_filter(*vcal, filt);
+                *vfilt = adc_filter(*vcal, filt); // update the vfilt ptr location
             
                 if (VERBOSE_FLAG) {
                     ESP_LOGI(TAG, "ADC%d_%d raw  : %d counts", unit + 1, chan, *vraw);
@@ -223,7 +225,7 @@ static void rx_task(void * pvParameters) {
     char hex[2] = {0x00, 0x00};
 
     app_uart2_init(U2_BAUD); // not sure i want to call this here
-    ESP_LOGI(TAG, "UART2 initialized successfully."); 
+    ESP_LOGI(TAG, "UART2 initialization complete."); 
 
     /*typedef enum serial_cmds_t {
         NOP                      = 0x0,
@@ -253,7 +255,7 @@ static void rx_task(void * pvParameters) {
             data[rxBytes - CRC_SIZE] = 0; // Null-terminate data string before CRC
             ESP_LOGI(TAG, "Read %d bytes: '%s'", rxBytes - CRC_SIZE, data);
 
-            // Compute local CRC
+            // Compute local CRC on the truncated data + CRC string
             uint32_t localCRC = app_compute_crc32_bytes(data, rxBytes - CRC_SIZE);
 
             // Compare CRCs
@@ -472,8 +474,9 @@ static void i2c_task(void * pvParameters) {
     //                2. act on the received value from uart2/bluetooth
 
     ESP_ERROR_CHECK(app_i2c_master_init());
-    ESP_LOGI(TAG, "I2C initialized successfully.");
+    ESP_LOGI(TAG, "I2C initilization complete.");
     ad5272_sw_reset();
+
     while(1) {
 
         // defo needs to be cleaned up, why r we reading every cycle of this task?
@@ -617,6 +620,8 @@ static void spi_task(void * pvParameters) {
 
     app_spi_init(handle);
 
+    ESP_LOGI(TAG, "SPI initialization complete.");
+
     while(1) {
 
         // Add a flag here to send ?
@@ -675,12 +680,12 @@ static void gpio_task(void * pvParameters) {
     gpioParams_t * params = (gpioParams_t *) pvParameters;
     const char * TAG = params->TAG;
 
-    esp_err_t ret = ESP_OK;
+    esp_err_t ret = app_gpio_init();
 
     count = 0; // To retain functionality of old config. Unsure if FPGA will freakout without this.
-
-    ret = app_gpio_init(); // not sure i want to call this here
         
+    ESP_LOGI(TAG, "GPIO initialization complete.");
+
     while(1) {
 
         if (count == 2) { 
@@ -698,11 +703,12 @@ static void gpio_task(void * pvParameters) {
     }
 
     while(1) {
+        
+        // We probabily want to register these to respond to flags set by pin change interrupt handlers 
+        ESP_LOGI(TAG, "AUX: %s", connection_state_names[!gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA 3.5mm aux switch
+        ESP_LOGI(TAG, "ECM: %s", connection_state_names[!gpio_get_level(ECM_SW_PIN)]); // AD4680 SDOA 2.5mm ECM switch
 
-        ESP_LOGI(TAG, "AUX: %s", gpio_status_names[gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA channel analog signal input
-        ESP_LOGI(TAG, "ECM: %s", gpio_status_names[gpio_get_level(ECM_SW_PIN)]);  
-
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -725,7 +731,12 @@ static void gpio_task(void * pvParameters) {
 */
 static void i2s_task(void * pvParameters) {
 
+    i2sParams_t * params = (i2sParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+
     app_i2s_init(); 
+
+    ESP_LOGI(TAG, "I2S initialization complete.");
 
     while(1) {
 
@@ -776,6 +787,9 @@ static void wifi_task(void * pvParameters) {
     // Check if app_wifi_init() succeeded
     if (ret != ESP_OK) { 
         ESP_LOGI(TAG, "!An error occured (err no. %d)!", ret);     
+    }
+    else {
+        ESP_LOGI(TAG, "WiFi initialization complete.");     
     }
 
     // This needs to be one big event handler... Disconnects, actions, etc.
@@ -830,7 +844,12 @@ static void wifi_task(void * pvParameters) {
 */
 static void bt_task(void * pvParameters) {
 
+    btParams_t * params = (btParams_t *) pvParameters;
+    const char * TAG = params->TAG;
+
     app_bt_init();
+
+    ESP_LOGI(TAG, "Bluetooth initialization complete.");     
 
     while(1) {
 
@@ -844,19 +863,21 @@ static void bt_task(void * pvParameters) {
 void app_main(void) {
 
     //static const bool VERBOSE = false;
-    const static char *TAG = "APP";
+    //const static char *TAG = "APP";
+    //esp_log_level_set("*", ESP_LOG_WARN); // Set logging to warnings and errors only. Exclude info.
     esp_err_t ret;
 
-    const char * i2c_task_tag = "MI2C_C0";          // APP_CPU (1)
-    const char * spi_task_tag = "MSPI_C0";          // APP_CPU (1)
-    const char * vntc_adc_task_tag = "ADC_VNTC_C0"; // APP_CPU (1)
-    const char * vdrv_adc_task_tag = "ADC_VDRV_C0"; // APP_CPU (1)
-    const char * i2s_task_tag = "MI2S_C0";          // APP_CPU (1)
-    const char * gpio_task_tag = "GPIO_C0";         // APP_CPU (1)
-    const char * uart2_rx_task_tag = "U2RX_C0";     // APP_CPU (1)
-    const char * uart2_tx_task_tag = "U2TX_C0";     // APP_CPU (1)
-    const char * wifi_task_tag = "WIFI_C1";         // PRO_CPU (0)
-    const char * bt_task_tag = "BT_C1";             // PRO_CPU (0)
+    const char * i2c_task_tag = "MI2C_C1";          // APP_CPU (1)
+    const char * spi_task_tag = "MSPI_C1";          // APP_CPU (1)
+    const char * vntc_adc_task_tag = "ADC_VNTC_C1"; // APP_CPU (1)
+    const char * vdrv_adc_task_tag = "ADC_VDRV_C1"; // APP_CPU (1)
+    const char * i2s_task_tag = "MI2S_C1";          // APP_CPU (1). Not sure how to handle data transfer across cores
+    const char * gpio_task_tag = "GPIO_C1";         // APP_CPU (1)
+    const char * uart2_rx_task_tag = "U2RX_C1";     // APP_CPU (1)
+    const char * uart2_tx_task_tag = "U2TX_C1";     // APP_CPU (1)
+    const char * app_main_task_tag = "MAIN_C1";     // APP_CPU (1)
+    const char * wifi_task_tag = "WIFI_C0";         // PRO_CPU (0)
+    const char * bt_task_tag = "BT_C0";             // PRO_CPU (0)
 
     adc_oneshot_unit_handle_t adc1_handle = NULL;
     adc_cali_handle_t adc1_cali_chan0_handle = NULL;
@@ -881,10 +902,9 @@ void app_main(void) {
         .action = &digipot_action,      // This action is to be update by other tasks
         .wiperValue = &digipot_value,   // This value is only used for updating the RDAC register
     };
-    
-    //esp_log_level_set("*", ESP_LOG_WARN); // Set logging to warnings and errors only. Exclude info.
 
-    // need also a u2txParams
+    uartParams_t u2txParams;
+
     uartParams_t u2rxParams = {
         .TAG = uart2_rx_task_tag,
         .data_buff = &spi_tx_data, // Data comes from U2Rx, and goes to SPI master task, then sent to artix7
@@ -954,6 +974,10 @@ void app_main(void) {
     btParams_t btParams = {
         .TAG = bt_task_tag
     };
+
+    i2sParams_t i2sParams = {
+        .TAG = i2s_task_tag
+    };
     
     // ===== Application Task Declarations ===== //
 
@@ -961,11 +985,13 @@ void app_main(void) {
 
     // Note that a fast loop will hog resources and watchdog will not be kicked, causing a soft reset.
  
+    // Might want to sequence these tasks differently so comms are up first
+
     // Low speed peripheral functions (APP_CPU)
     // Make task priorities and cores global #defines at top of this file
     xTaskCreatePinnedToCore(rx_task,  uart2_rx_task_tag, 1024*8, (void *)&u2rxParams, 
-        configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // This task need not have high priority without the handheld remote connection. A configurable pulldown might be a good option to set this on startup.
-    xTaskCreatePinnedToCore(tx_task,  uart2_tx_task_tag, 1024*4, NULL /*(void *)&u2txParams*/, 
+        configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // This task need not have high priority without the remote
+    xTaskCreatePinnedToCore(tx_task,  uart2_tx_task_tag, 1024*4, (void *)&u2txParams, 
         configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // Only invoke this task when explicitly requested by the remote
     xTaskCreatePinnedToCore(spi_task, spi_task_tag,  1024*2, (void *)&mspiParams, 
         configMAX_PRIORITIES-1, NULL, APP_CPU_NUM);
@@ -977,7 +1003,7 @@ void app_main(void) {
         configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
     xTaskCreatePinnedToCore(gpio_task, gpio_task_tag,  1024*2, (void *)&gpioParams, 
         configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(i2s_task, gpio_task_tag,  1024*2, NULL /*(void *)&i2sParams*/, 
+    xTaskCreatePinnedToCore(i2s_task, gpio_task_tag,  1024*2, (void *)&i2sParams, 
         configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
     
     // RF (webserver via IEE802.11), BT (PRO_CPU)
@@ -986,13 +1012,18 @@ void app_main(void) {
     xTaskCreatePinnedToCore(bt_task, bt_task_tag,  1024*4, (void *)&wifiParams, 
         configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
 
-    vTaskDelay(pdMS_TO_TICKS(250)); // Give all the various peripheral init routines time to execute
+    ESP_LOGI(app_main_task_tag, 
+        "Done pinning tasks to cores. Waiting %dms for peripheral initializations...", INIT_DELAY_PD_MS); 
+    
+    vTaskDelay(pdMS_TO_TICKS(INIT_DELAY_PD_MS)); // Give all the various peripheral init routines time to execute
+
+    ESP_LOGI(app_main_task_tag, "Initialization complete."); 
 
     // Main loop toggles heartbeat to indicate scheduler keep-up
     // By default, app_main() runs on Core 1 (APP_CPU)
     while(1) {
 
-        app_heartbeat_toggle(); // this needs to have gpio init called
+        app_heartbeat_toggle();
 
         vTaskDelay(HEARTBEAT_BLINK_PERIOD_MS / portTICK_PERIOD_MS);
     }

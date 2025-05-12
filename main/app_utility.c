@@ -10,6 +10,16 @@
 
 #include "app_include/app_utility.h" // Function prototypes, constants, preprocessor defs/macros, typedefs
 
+const char * device_state_names[2] = {
+    "OFF",
+    "ON"
+};
+
+const char * connection_state_names[2] = { // Applicable for GPIO and BT/WIFI
+    "DISCONNECTED",
+    "CONNECTED"
+};
+
 /*---------------------------------------------------------------
     Basic CRC32 Implementation (Little Endian)
 ---------------------------------------------------------------*/

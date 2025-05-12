@@ -31,10 +31,13 @@ extern "C" {
 // Pin Defines
 
 // Settings
+#define INIT_DELAY_PD_MS 500 // Wait this long in the main task after starting all other tasks
 
 // Macros
 
 // Typedefs
+extern const char * device_state_names[2];
+extern const char * connection_state_names[2];
 
 // Static functions
 

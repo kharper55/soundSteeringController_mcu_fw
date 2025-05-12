@@ -29,6 +29,9 @@ extern "C" {
 // Macros
 
 // Typedefs
+typedef struct {
+    char * TAG
+} i2sParams_t;
 
 // Static functions
 

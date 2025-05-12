@@ -61,13 +61,11 @@ typedef struct {
     char * TAG
 } gpioParams_t;
 
-extern const char * device_state_names[2];
+extern const char * gpio_status_names[2];
 
 // User functions
 esp_err_t app_gpio_init(void);
 esp_err_t app_heartbeat_toggle(void);
-
-extern const char * gpio_status_names[2];
 
 #ifdef __cplusplus
 }
