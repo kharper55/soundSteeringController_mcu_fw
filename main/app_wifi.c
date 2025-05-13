@@ -16,6 +16,20 @@ static EventGroupHandle_t sta_evt_grp;
 static int retry_num = 0;
 
 /*---------------------------------------------------------------
+    Initializes Non-Volatile Storage peripheral drivers
+    for storage of RF PHY calibration constants
+---------------------------------------------------------------*/
+esp_err_t app_nvs_init(const char * TAG) {
+    /* Initialize NVS — it is used to store PHY calibration data */
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    return ret;
+}
+
+/*---------------------------------------------------------------
     Initializes Network Address Port Translation (NAPT) to enable
     routing of traffic from devices connected to the ESP32's
     Wi-Fi SoftAP (AP interface) through the Station (STA) interface,
@@ -238,12 +252,9 @@ esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode, bool NATen) {
     // Check user input mode selection
     if (!(mode == WIFI_MODE_AP || mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA)) return ESP_FAIL;
 
-    ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
+    // Initialize NVS as it is used to store RF calibration data
+    ret = app_nvs_init(TAG);
+    if (ret != ESP_OK) return ret;
 
     ip_addr_t dnsserver;
     sta_evt_grp = xEventGroupCreate();

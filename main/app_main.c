@@ -847,7 +847,7 @@ static void bt_task(void * pvParameters) {
     btParams_t * params = (btParams_t *) pvParameters;
     const char * TAG = params->TAG;
 
-    app_bt_init();
+    app_bt_init(TAG);
 
     ESP_LOGI(TAG, "Bluetooth initialization complete.");     
 
@@ -1009,7 +1009,7 @@ void app_main(void) {
     // RF (webserver via IEE802.11), BT (PRO_CPU)
     xTaskCreatePinnedToCore(wifi_task, wifi_task_tag,  1024*4, (void *)&wifiParams, 
         configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
-    xTaskCreatePinnedToCore(bt_task, bt_task_tag,  1024*4, (void *)&wifiParams, 
+    xTaskCreatePinnedToCore(bt_task, bt_task_tag,  1024*4, (void *)&btParams, 
         configMAX_PRIORITIES, NULL, PRO_CPU_NUM);
 
     ESP_LOGI(app_main_task_tag, 

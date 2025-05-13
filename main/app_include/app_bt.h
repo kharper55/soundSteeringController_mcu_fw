@@ -30,6 +30,17 @@ extern "C" {
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
 #include "esp_bt.h" // Not sure which headers i actually need yet. Include guards will take care of it
+#include "app_utility.h"
+#include "nvs_flash.h"
+#include "soc/uhci_periph.h"
+#include "driver/uart.h"
+#include "esp_private/periph_ctrl.h" // for enabling UHCI module, remove it after UHCI driver is released
+#include "app_wifi.h" // For app_nvs_init()
+
+// A2DP requires inclusion vias sdk config
+#include "esp_a2dp_api.h" // FOR A2DP (a Bluetooth protocol that allows high-quality stereo audio to be streamed from one device to another.) 
+#include "esp_avrc_api.h" // FOR AVRC (Audio/Video Remote Control Profile, is a Bluetooth protocol used to control audio and video functions of Bluetooth devices)
+#include "esp_gap_bt_api.h"
 
 // See https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/bluetooth/esp_hidd.html
 // HID Host and Device link?
@@ -48,7 +59,8 @@ typedef struct {
 } btParams_t;
 
 // User functions
-esp_err_t app_bt_init(void);
+esp_err_t app_bt_init(const char * TAG);
+void init_bt_a2dp_sink(void);
 
 #ifdef __cplusplus
 }

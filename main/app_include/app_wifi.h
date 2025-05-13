@@ -66,6 +66,7 @@ typedef struct {
 // User functions
 esp_err_t app_wifi_deinit(void);
 esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode, bool NATen);
+esp_err_t app_nvs_init(const char * TAG);
 
 #ifdef __cplusplus
 }
