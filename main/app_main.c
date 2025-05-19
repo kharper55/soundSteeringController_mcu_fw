@@ -782,7 +782,7 @@ static void wifi_task(void * pvParameters) {
 
     esp_err_t ret = ESP_OK;
 
-    ret = app_wifi_init(TAG, WIFI_MODE, USE_NAT_IF_APSTA); // currently causing a watchdog issue or something
+    ret = app_wifi_init(TAG, mode, USE_NAT_IF_APSTA); // currently causing a watchdog issue or something
         
     // Check if app_wifi_init() succeeded
     if (ret != ESP_OK) { 
@@ -867,17 +867,17 @@ void app_main(void) {
     //esp_log_level_set("*", ESP_LOG_WARN); // Set logging to warnings and errors only. Exclude info.
     esp_err_t ret;
 
-    const char * i2c_task_tag = "MI2C_C1";          // APP_CPU (1)
-    const char * spi_task_tag = "MSPI_C1";          // APP_CPU (1)
-    const char * vntc_adc_task_tag = "ADC_VNTC_C1"; // APP_CPU (1)
-    const char * vdrv_adc_task_tag = "ADC_VDRV_C1"; // APP_CPU (1)
-    const char * i2s_task_tag = "MI2S_C1";          // APP_CPU (1). Not sure how to handle data transfer across cores
-    const char * gpio_task_tag = "GPIO_C1";         // APP_CPU (1)
-    const char * uart2_rx_task_tag = "U2RX_C1";     // APP_CPU (1)
-    const char * uart2_tx_task_tag = "U2TX_C1";     // APP_CPU (1)
-    const char * app_main_task_tag = "MAIN_C1";     // APP_CPU (1)
-    const char * wifi_task_tag = "WIFI_C0";         // PRO_CPU (0)
-    const char * bt_task_tag = "BT_C0";             // PRO_CPU (0)
+    const char * i2c_task_tag      = "MI2C_C1    ";     // APP_CPU (1)
+    const char * spi_task_tag      = "MSPI_C1    ";     // APP_CPU (1)
+    const char * vntc_adc_task_tag = "ADC_VNTC_C1";     // APP_CPU (1)
+    const char * vdrv_adc_task_tag = "ADC_VDRV_C1";     // APP_CPU (1)
+    const char * i2s_task_tag      = "MI2S_C1    ";     // APP_CPU (1). Not sure how to handle data transfer across cores
+    const char * gpio_task_tag     = "GPIO_C1    ";     // APP_CPU (1)
+    const char * uart2_rx_task_tag = "U2RX_C1    ";     // APP_CPU (1)
+    const char * uart2_tx_task_tag = "U2TX_C1    ";     // APP_CPU (1)
+    const char * app_main_task_tag = "MAIN_C1    ";     // APP_CPU (1)
+    const char * wifi_task_tag     = "WIFI_C0    ";     // PRO_CPU (0)
+    const char * bt_task_tag       = "BT_C0      ";     // PRO_CPU (0)
 
     adc_oneshot_unit_handle_t adc1_handle = NULL;
     adc_cali_handle_t adc1_cali_chan0_handle = NULL;
@@ -964,7 +964,7 @@ void app_main(void) {
 
     wifiParams_t wifiParams = {
         .TAG = wifi_task_tag,
-        .mode = WIFI_MODE_AP /*WIFI_MODE_APSTA*/
+        .mode = APP_WIFI_MODE /*WIFI_MODE_APSTA*/
     };
 
     gpioParams_t gpioParams = { // CURRENTLY UNUSED
@@ -989,7 +989,6 @@ void app_main(void) {
 
     // Low speed peripheral functions (APP_CPU)
     // Make task priorities and cores global #defines at top of this file
-    
     xTaskCreatePinnedToCore(rx_task,  uart2_rx_task_tag, 1024*8, (void *)&u2rxParams, 
         configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // This task need not have high priority without the remote
     xTaskCreatePinnedToCore(tx_task,  uart2_tx_task_tag, 1024*4, (void *)&u2txParams, 

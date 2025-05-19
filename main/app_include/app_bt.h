@@ -16,7 +16,16 @@ Bluetooth as well as BLE. On the other hand, Apache NimBLE based stack is BLE on
     - For usecases involving classic Bluetooth as well as BLE, Bluedroid should be used.
     - For BLE-only usecases, using NimBLE is recommended. It is less demanding in terms of 
     code footprint and runtime memory, making it suitable for such scenarios.
-*/
+
+
+SSP - Secure Simple Pairing
+GAP - General Access Profile. The layer of the BLE protocol stack responsible 
+for device discovery, connection establishment, and basic security procedures. 
+GAP defines how devices find each other, connect, and initiate security measures.
+
+
+
+    */
 
 #ifndef APP_BT_H
 #define APP_BT_H
@@ -48,6 +57,8 @@ extern "C" {
 // Pin Defines
 
 // Settings
+#define BT_HOST_NAME "SoundSteeringA2DP"
+#define BT_LEGACY_DEVICE_PIN "2256"     // Represents ABKM
 
 // Macros
 

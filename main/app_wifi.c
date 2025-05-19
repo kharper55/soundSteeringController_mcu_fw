@@ -43,62 +43,56 @@ esp_err_t app_nvs_init(const char * TAG) {
       enabled in the project configuration.
 ---------------------------------------------------------------*/
 static esp_err_t app_esp_ip_napt_init(void) {
-
     esp_err_t err = ESP_OK;
 
-    // Try to get the AP interface handle
     esp_netif_t* ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
     if (ap_netif == NULL) {
         ESP_LOGE("NAPT", "Failed to get AP interface.");
         return ESP_FAIL;
     }
 
-    // Verify the AP interace is up
     if (!esp_netif_is_netif_up(ap_netif)) {
         ESP_LOGE("NAPT", "AP netif not up yet.");
         return ESP_FAIL;
     }
 
-    // Try to get the STA interface handle
     esp_netif_t* sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    if (ap_netif == NULL) {
+    if (sta_netif == NULL) {
         ESP_LOGE("NAPT", "Failed to get STA interface.");
         return ESP_FAIL;
     }
 
-    // Verify the STA interace is up
     if (!esp_netif_is_netif_up(sta_netif)) {
         ESP_LOGE("NAPT", "STA netif not up yet.");
         return ESP_FAIL;
     }
 
-    // Enable NAPT only if getting the interface succeeds
     err = esp_netif_napt_enable(ap_netif);
     if (err != ESP_OK) {
         ESP_LOGE("NAPT", "Failed to enable NAPT: %s", esp_err_to_name(err));
         return ESP_FAIL;
     }
 
-    // Proceed to get IP info if NAPT was enabled
-    esp_netif_ip_info_t ip_info;
-    err = esp_netif_get_ip_info(ap_netif, &ip_info);
+    esp_netif_ip_info_t ap_ip_info;
+    err = esp_netif_get_ip_info(ap_netif, &ap_ip_info);
     if (err == ESP_OK) {
-        ESP_LOGI("NAPT", "NAPT enabled on SoftAP interface with IP: " IPSTR, IP2STR(&ip_info.ip));
+        ESP_LOGI("NAPT", "NAPT enabled on AP with IP: " IPSTR, IP2STR(&ap_ip_info.ip));
     } else {
         ESP_LOGW("NAPT", "Failed to get AP IP info: %s", esp_err_to_name(err));
-        return ESP_FAIL;
     }
 
-    // Set default route. Some LwIP setups require this
-    err = esp_netif_set_default_netif(sta_netif); 
+    err = esp_netif_set_default_netif(sta_netif);
     if (err == ESP_OK) {
-        ESP_LOGI("NAPT", "STA interface set for default route." IPSTR, IP2STR(&ip_info.ip));
+        esp_netif_ip_info_t sta_ip_info;
+        if (esp_netif_get_ip_info(sta_netif, &sta_ip_info) == ESP_OK) {
+            ESP_LOGI("NAPT", "STA set as default route. STA IP: " IPSTR, IP2STR(&sta_ip_info.ip));
+        }
     } else {
-        ESP_LOGW("NAPT", "Failed to set STA interface as default route.");
+        ESP_LOGW("NAPT", "Failed to set STA as default netif.");
         return ESP_FAIL;
     }
 
-    return err;
+    return ESP_OK;
 }
 
 /*---------------------------------------------------------------
@@ -163,42 +157,51 @@ static void sta_wifi_event_handler(void* arg, esp_event_base_t event_base,
     // Dynamic Host Configuration Protocol (DCHP)
     // Also used to initialize DNS relay and NAPT when NAT is enabled
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-
-        // Cast event data to IP event structure to access assigned IP info
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI("STA", "DHCP-granted IP:" IPSTR, IP2STR(&event->ip_info.ip));
-        retry_num = 0; // Reset counter upon successful IP acquisition
-
-        // Signal that STA WIFI is connected and has IP
+        ESP_LOGI("STA", "DHCP-granted IP!");
+    
+        // Get DNS server info from lwIP (index 0)
+        const ip_addr_t* lwip_dns_ip = dns_getserver(0);
+        esp_netif_dns_info_t dns_info = { 0 };
+    
+        if (lwip_dns_ip && lwip_dns_ip->type == IPADDR_TYPE_V4) {
+            memcpy(&dns_info.ip.u_addr.ip4, &lwip_dns_ip->u_addr.ip4, sizeof(esp_ip4_addr_t));
+            dns_info.ip.type = IPADDR_TYPE_V4;
+            ESP_LOGI("STA", "Using IPv4 DNS server: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+        } else {
+            ESP_LOGW("STA", "Invalid or missing DNS info from STA interface.");
+            return;
+        }
+    
+        retry_num = 0;
         xEventGroupSetBits(sta_evt_grp, STA_WIFI_CONNECTED_BIT);
-
+    
         if (ctx && ctx->NAT_enabled && ctx->mode == WIFI_MODE_APSTA) {
-            // Retrieve current DNS server from LwIP
-            const ip_addr_t* lwip_dns_ip = dns_getserver(0);
-
-            // Prepare esp_netif_dns_info_t structure to set DNS on AP interface
-            esp_netif_dns_info_t dns_info = { 0 }; 
-            
-            // Copy DNS IP based on whether it's IPv4 or IPv6
-            dns_info.ip.type = lwip_dns_ip->type;
-            if (lwip_dns_ip->type == IPADDR_TYPE_V4) {
-                dns_info.ip.u_addr.ip4.addr = lwip_dns_ip->u_addr.ip4.addr;
-            } else if (lwip_dns_ip->type == IPADDR_TYPE_V6) {
-                memcpy(&dns_info.ip.u_addr.ip6, &lwip_dns_ip->u_addr.ip6, sizeof(ip6_addr_t));
-            }
-
-            // Get the handle to the AP network interface
-            esp_netif_t * ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-
+            // Set DNS for AP interface (i.e. DHCP clients on ESP32 AP)
+            esp_netif_t* ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
             if (ap_netif) {
-                // Set the DNS server info for the AP interface so clients can resolve domains
+                ESP_ERROR_CHECK(esp_netif_dhcps_stop(ap_netif));
+    
+                // Tell DHCP server to use custom DNS (value = 2)
+                uint8_t opt_val = 2;
+                ESP_ERROR_CHECK(esp_netif_dhcps_option(ap_netif,
+                    ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER,
+                    &opt_val, sizeof(opt_val)));
+    
                 ESP_ERROR_CHECK(esp_netif_set_dns_info(ap_netif, ESP_NETIF_DNS_MAIN, &dns_info));
-            } else {
-                ESP_LOGW("STA", "Failed to get AP netif handle for DNS setup.");
+                ESP_ERROR_CHECK(esp_netif_dhcps_start(ap_netif));
+                ESP_LOGI("STA", "DNS propagated to AP clients.");
             }
-
-            // If in APSTA mode and NAT is enabled, propagate DNS to AP and start NAPT
-            ESP_ERROR_CHECK(app_esp_ip_napt_init()); 
+    
+            // Set DNS for STA interface (optional, for consistency)
+            esp_netif_t* sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+            if (sta_netif) {
+                ESP_ERROR_CHECK(esp_netif_set_dns_info(sta_netif, ESP_NETIF_DNS_MAIN, &dns_info));
+                ESP_LOGI("STA", "DNS reaffirmed for STA interface.");
+            }
+    
+            // Start NAPT
+            ESP_ERROR_CHECK(app_esp_ip_napt_init());
         }
     }
 }
@@ -397,7 +400,7 @@ esp_err_t app_wifi_init(const char * TAG, wifi_mode_t mode, bool NATen) {
         default:
             break;
     }
-    
+
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) 
     or connection failed for the maximum number of retries (WIFI_FAIL_BIT). */
     if (mode == WIFI_MODE_STA || mode == WIFI_MODE_APSTA) {
