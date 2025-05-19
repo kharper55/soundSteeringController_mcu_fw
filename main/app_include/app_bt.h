@@ -60,7 +60,6 @@ typedef struct {
 
 // User functions
 esp_err_t app_bt_init(const char * TAG);
-void init_bt_a2dp_sink(void);
 
 #ifdef __cplusplus
 }

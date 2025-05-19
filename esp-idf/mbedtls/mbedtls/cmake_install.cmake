@@ -39,10 +39,10 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/include/cmake_install.cmake")
-  include("C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/3rdparty/cmake_install.cmake")
-  include("C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/library/cmake_install.cmake")
-  include("C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/mbedtls/mbedtls/pkgconfig/cmake_install.cmake")
+  include("C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/esp-idf/mbedtls/mbedtls/include/cmake_install.cmake")
+  include("C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/esp-idf/mbedtls/mbedtls/3rdparty/cmake_install.cmake")
+  include("C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/esp-idf/mbedtls/mbedtls/library/cmake_install.cmake")
+  include("C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/esp-idf/mbedtls/mbedtls/pkgconfig/cmake_install.cmake")
 
 endif()
 

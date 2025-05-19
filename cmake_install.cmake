@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00
+# Install script for directory: C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -39,7 +39,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/esp-idf/cmake_install.cmake")
+  include("C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/esp-idf/cmake_install.cmake")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT)
@@ -57,6 +57,6 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-  file(WRITE "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/${CMAKE_INSTALL_MANIFEST}"
+  file(WRITE "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

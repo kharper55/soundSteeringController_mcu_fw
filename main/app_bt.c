@@ -30,6 +30,7 @@ void audio_data_callback(const char * TAG, const uint8_t *data, uint32_t len) {
 }
 
 esp_err_t app_bt_init(const char *TAG) {
+    
     esp_err_t ret;
 
     // Initialize NVS (Non-Volatile Storage)

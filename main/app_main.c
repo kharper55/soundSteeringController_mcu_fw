@@ -989,6 +989,7 @@ void app_main(void) {
 
     // Low speed peripheral functions (APP_CPU)
     // Make task priorities and cores global #defines at top of this file
+    
     xTaskCreatePinnedToCore(rx_task,  uart2_rx_task_tag, 1024*8, (void *)&u2rxParams, 
         configMAX_PRIORITIES-1, NULL, APP_CPU_NUM); // This task need not have high priority without the remote
     xTaskCreatePinnedToCore(tx_task,  uart2_tx_task_tag, 1024*4, (void *)&u2txParams, 
@@ -1003,7 +1004,7 @@ void app_main(void) {
         configMAX_PRIORITIES-2, NULL, APP_CPU_NUM);
     xTaskCreatePinnedToCore(gpio_task, gpio_task_tag,  1024*2, (void *)&gpioParams, 
         configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(i2s_task, gpio_task_tag,  1024*2, (void *)&i2sParams, 
+    xTaskCreatePinnedToCore(i2s_task, i2s_task_tag,  1024*2, (void *)&i2sParams, 
         configMAX_PRIORITIES-3, NULL, APP_CPU_NUM);
     
     // RF (webserver via IEE802.11), BT (PRO_CPU)

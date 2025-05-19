@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/main
+# Install script for directory: C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

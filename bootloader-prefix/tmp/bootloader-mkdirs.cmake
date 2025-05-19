@@ -10,18 +10,18 @@ if(NOT EXISTS "C:/Users/kharp/esp/v5.1.6/esp-idf/components/bootloader/subprojec
   file(MAKE_DIRECTORY "C:/Users/kharp/esp/v5.1.6/esp-idf/components/bootloader/subproject")
 endif()
 file(MAKE_DIRECTORY
-  "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader"
-  "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader-prefix"
-  "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader-prefix/tmp"
-  "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader-prefix/src/bootloader-stamp"
-  "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader-prefix/src"
-  "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader-prefix/src/bootloader-stamp"
+  "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader"
+  "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader-prefix"
+  "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader-prefix/tmp"
+  "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader-prefix/src/bootloader-stamp"
+  "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader-prefix/src"
+  "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader-prefix/src/bootloader-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader-prefix/src/bootloader-stamp/${subDir}")
+    file(MAKE_DIRECTORY "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader-prefix/src/bootloader-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "C:/Users/kharp/Desktop/Harper_SoundSteering_FinalSubmission/Software/C/ESP-IDF/soundSteering_controller_revB_fw1_00/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "C:/Users/kharp/Desktop/ss_ctrl_fw_v2.0/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
 endif()
