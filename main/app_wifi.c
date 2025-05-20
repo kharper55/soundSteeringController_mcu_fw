@@ -180,7 +180,7 @@ static void sta_wifi_event_handler(void* arg, esp_event_base_t event_base,
             // Set DNS for AP interface (i.e. DHCP clients on ESP32 AP)
             esp_netif_t* ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
             if (ap_netif) {
-                ESP_ERROR_CHECK(esp_netif_dhcps_stop(ap_netif));
+                ESP_ERROR_CHECK(esp_netif_dhcps_stop(ap_netif)); // Need to stop the dhcp server before modifying
     
                 // Tell DHCP server to use custom DNS (value = 2)
                 uint8_t opt_val = 2;

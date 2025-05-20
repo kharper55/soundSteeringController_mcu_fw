@@ -20,6 +20,12 @@ const char * connection_state_names[2] = { // Applicable for GPIO and BT/WIFI
     "CONNECTED"
 };
 
+const char * process_state_names[3] = {
+    "SUSPENDED",
+    "STOPPED",
+    "RUNNING"
+};
+
 /*---------------------------------------------------------------
     Basic CRC32 Implementation (Little Endian)
 ---------------------------------------------------------------*/

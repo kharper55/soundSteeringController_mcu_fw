@@ -23,9 +23,7 @@ GAP - General Access Profile. The layer of the BLE protocol stack responsible
 for device discovery, connection establishment, and basic security procedures. 
 GAP defines how devices find each other, connect, and initiate security measures.
 
-
-
-    */
+*/
 
 #ifndef APP_BT_H
 #define APP_BT_H

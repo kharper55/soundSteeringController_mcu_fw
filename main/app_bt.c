@@ -12,15 +12,16 @@
 const char * a2dp_cb_tag = "A2DP_CB_C0 ";     // PRO_CPU (0)
 const char * gap_cb_tag  = "GAP_CB_C0  ";     // PRO_CPU (0)
 const char * adin_cb_tag = "ADIN_CB_C0 ";     // PRO_CPU (0)
+extern const char * process_state_names[3];
 
 // Callback for A2DP events
 static void a2dp_sink_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
     switch (event) {
         case ESP_A2D_CONNECTION_STATE_EVT:
-            ESP_LOGI(a2dp_cb_tag, "A2DP connection state: %d", param->conn_stat.state);
+            ESP_LOGI(a2dp_cb_tag, "A2DP connection state: %s", connection_state_names[param->conn_stat.state]);
             break;
         case ESP_A2D_AUDIO_STATE_EVT:
-            ESP_LOGI(a2dp_cb_tag, "A2DP audio state: %d", param->audio_stat.state);
+            ESP_LOGI(a2dp_cb_tag, "A2DP audio state: %s", process_state_names[param->audio_stat.state]);
             break;
         default:
             break;
@@ -49,15 +50,17 @@ void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
             break;
 
         case ESP_BT_GAP_PIN_REQ_EVT:
-            ESP_LOGW(gap_cb_tag, "Legacy device requested PIN");
+            ESP_LOGI(gap_cb_tag, "Legacy device requested PIN");
             esp_bt_pin_code_t pin_code;
             strcpy((char *)pin_code, BT_LEGACY_DEVICE_PIN);
             esp_bt_gap_pin_reply(param->pin_req.bda, true, 4, pin_code);
             break;
+
+        // Handle other events if needed
             
         default:
             ESP_LOGI(gap_cb_tag, "Unhandled event! %d", event);
-        // Handle other events if needed
+        
     }
 }
 

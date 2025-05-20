@@ -17,7 +17,9 @@ extern "C" {
 
 // Includes
 #include "driver/i2s_std.h" // Interface for I2S peripheral hardware driver
+//#include "driver/i2s.h"
 #include "app_gpio.h" /* Include for now as I2S pins are simply initialized as GPIO...*/
+#include "app_utility.h"
 
 // Pin Defines
 #define I2S_SDA_PIN             GPIO_NUM_25
@@ -36,7 +38,7 @@ typedef struct {
 // Static functions
 
 // User functions
-esp_err_t app_i2s_init(void);
+esp_err_t app_i2s_init(const char * TAG);
 
 #ifdef __cplusplus
 }

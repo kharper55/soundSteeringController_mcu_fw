@@ -734,7 +734,7 @@ static void i2s_task(void * pvParameters) {
     i2sParams_t * params = (i2sParams_t *) pvParameters;
     const char * TAG = params->TAG;
 
-    app_i2s_init(); 
+    ESP_ERROR_CHECK(app_i2s_init(TAG));
 
     ESP_LOGI(TAG, "I2S initialization complete.");
 
