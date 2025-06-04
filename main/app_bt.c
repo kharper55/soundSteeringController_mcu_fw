@@ -14,6 +14,8 @@ const char * gap_cb_tag  = "GAP_CB_C0  ";     // PRO_CPU (0)
 const char * adin_cb_tag = "ADIN_CB_C0 ";     // PRO_CPU (0)
 extern const char * process_state_names[3];
 
+uint8_t * circ_buff[1024];
+
 // Callback for A2DP events
 static void a2dp_sink_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
     switch (event) {
@@ -32,6 +34,20 @@ static void a2dp_sink_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
 void audio_data_callback(const uint8_t *data, uint32_t len) {
     ESP_LOGI(adin_cb_tag, "Received audio data: %" PRIu32 " bytes", len);
     // Process the audio data (e.g., send to I2S, DAC, etc.)
+
+    // This callback should write to a queue/buffer
+    // The i2s task will need to access this buffer serving data in queue order
+    // This may recall a semaphore/other shared resource control means
+
+    // Lock the semaphore so an access may not occur if a context switch occurs during a write
+
+    // For efficiency, populate circ buff as follows:
+    // the data location will be in consecutive memory locations, 
+    // so assign appropriate buff indeces to point to new memory locations
+    // not sure if this is feasible
+
+
+       
 }
 
 void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {

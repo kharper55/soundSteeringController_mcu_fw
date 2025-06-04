@@ -12,7 +12,7 @@
 /*---------------------------------------------------------------
     xxxxxxx
 ---------------------------------------------------------------*/
-static i2s_chan_handle_t tx_chan; // TX channel handle
+static i2s_chan_handle_t tx_chan; // TX channel handle, move to app_main in final implementation
 
 esp_err_t app_i2s_init(const char *TAG) {
     esp_err_t ret;
@@ -30,6 +30,7 @@ esp_err_t app_i2s_init(const char *TAG) {
     // Define standard I2S configuration
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(44100),
+        // Left slot in leading byte for stereo.
         .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,       // Disable MCLK explicitly

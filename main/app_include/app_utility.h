@@ -28,6 +28,9 @@ extern "C" {
 #include <ctype.h>
 #include "rom/crc.h"            // For crc32 calculations
 
+//#include "freertos/queue.h"
+#include "freertos/semphr.h"
+
 // Pin Defines
 
 // Settings
@@ -40,6 +43,15 @@ extern const char * device_state_names[2];
 extern const char * connection_state_names[2];
 extern const char * process_state_names[3];
 
+typedef struct {
+    uint8_t * buffer;         // uint8_ts
+    uint16_t head;            // Index of the first element in the buffer
+    uint16_t tail;            // Index of the next empty slot in the buffer
+    SemaphoreHandle_t mutex;  // Mutex to protect buffer access
+    uint8_t mutexWaitMs;      // Time to wait for mutex release for all methods
+    uint16_t size;            // Size of the circular buffer. This type should match that of head, tail indeces
+} circularBuffer;             // Max size is uint16_t 65535
+
 // Static functions
 
 // User functions
@@ -49,6 +61,15 @@ uint32_t app_compute_crc32_bytes(uint8_t * bytes, int data_len);
 uint8_t hex2dec(char data);
 //int hex2dec(char hex[]);
 uint8_t concat_hex_chars(char high, char low);
+
+// circ_buff port from remote source. circ buff chosen for i2s data bc stale streaming data is of no use to user
+void init_buffer(circularBuffer *cb, uint16_t size);
+void clear_buffer(circularBuffer *cb);
+void reset_buffer(circularBuffer *cb);
+void push_data(circularBuffer *cb, uint8_t data);
+int pop_data(circularBuffer *cb); // returns -1 is buffer empty
+void push_blk_data(circularBuffer *cb, uint8_t * data, uint8_t size); // making judgement call that 255 data members gives us more than enough margin
+int pop_blk_data(circularBuffer *cb, uint8_t size); // returns -1 is buffer empty
 
 #ifdef __cplusplus
 }
