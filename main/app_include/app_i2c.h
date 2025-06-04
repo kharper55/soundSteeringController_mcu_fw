@@ -87,7 +87,7 @@ typedef struct {
 
 typedef struct {
      AD5272_actions_t * action;      // Hold, increment, decrement (coming soon: excrement)
-     uint16_t * wiperValue;                 /* Desired update value; should be between 0 and 1024 */
+     uint16_t * wiperValue;          /* Desired update value; should be between 0 and 1024 */
 } digipot_ctrl_t;
 
 typedef struct {

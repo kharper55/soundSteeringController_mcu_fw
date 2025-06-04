@@ -52,6 +52,7 @@ uint32_t count = 0;
 bool heartbeat = false; // Level status for heartbeat output. Flopped at set interval in app_main
 
 // Try automatically getting length with sizeof(arr)/sizeof(firstEl)(this requires predeclaring an array and passing to the struct which I am not sure is possible)
+// this is hella goofy
 adc_filter_t vdrive_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
 adc_filter_t vntc_filt_handle = {0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 10, false};
 
