@@ -76,7 +76,7 @@ extern const char * temperature_names[5];      // Defined in app_adc.h. Might wa
 extern const char * gpio_status_names[2];      // Defined in app_gpio.h
 extern const char * serial_cmd_names[7];       // Defined in app_uart2.h
 extern const char * device_state_names[2];     // Defined in app_utility.h
-extern const char * connection_state_names[2]; // Defined in app_utility.h
+extern const char * connection_state_names[4]; // Defined in app_utility.h
 
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task

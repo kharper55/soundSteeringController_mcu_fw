@@ -15,9 +15,11 @@ const char * device_state_names[2] = {
     "ON"
 };
 
-const char * connection_state_names[2] = { // Applicable for GPIO and BT/WIFI
+const char * connection_state_names[4] = { // Applicable for GPIO and BT/WIFI
     "DISCONNECTED",
-    "CONNECTED"
+    "CONNECTING",
+    "CONNECTED",
+    "DISCONNECTING"
 };
 
 const char * process_state_names[3] = {
@@ -68,13 +70,13 @@ uint8_t concat_hex_chars(char high, char low) {
 
 
 /*---------------------------------------------------------------
-    Circular buffer stuff for registering more key combinations
+    Initialize the circular buffer
 ---------------------------------------------------------------*/
-// Initialize the circular buffer
 void init_buffer(circularBuffer *cb, uint16_t size) {
-    for (int i = 0; i < size; i++) {
+    // this is almost certainly a waste of clock cycles
+    /*for (int i = 0; i < size; i++) {
         cb->buffer[i] = 0;
-    }
+    }*/
     cb->head = 0;
     cb->tail = 0;
     cb->mutex = xSemaphoreCreateMutex();  // Create mutex
@@ -83,7 +85,7 @@ void init_buffer(circularBuffer *cb, uint16_t size) {
 }
 
 /*---------------------------------------------------------------
-    Clear circ buff.
+    Clear circ buff. dont use this
 ---------------------------------------------------------------*/
 void clear_buffer(circularBuffer *cb) {
     xSemaphoreTake(cb->mutex, cb->mutexWaitMs);  // Take mutex before accessing buffer

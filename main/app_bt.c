@@ -13,8 +13,7 @@ const char * a2dp_cb_tag = "A2DP_CB_C0 ";     // PRO_CPU (0)
 const char * gap_cb_tag  = "GAP_CB_C0  ";     // PRO_CPU (0)
 const char * adin_cb_tag = "ADIN_CB_C0 ";     // PRO_CPU (0)
 extern const char * process_state_names[3];
-
-uint8_t * circ_buff[1024];
+extern const char * connection_state_names[4];
 
 // Callback for A2DP events
 static void a2dp_sink_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
@@ -46,8 +45,13 @@ void audio_data_callback(const uint8_t *data, uint32_t len) {
     // so assign appropriate buff indeces to point to new memory locations
     // not sure if this is feasible
 
+    // started working on a circ buff implementation but idf actually
+    // offers some dma stuff out the gate... might make sense to use...
+    // If we can store PCM audio data in contiguous blocks of mem,
+    // we wont need a linear time complexity method for moving this data around...
+    // just update the addresses as necessary....
+    // Look into DMA_ATTR as a prefix to a type specifier...
 
-       
 }
 
 void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {

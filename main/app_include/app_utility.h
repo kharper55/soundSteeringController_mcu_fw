@@ -40,7 +40,7 @@ extern "C" {
 
 // Typedefs
 extern const char * device_state_names[2];
-extern const char * connection_state_names[2];
+extern const char * connection_state_names[4];
 extern const char * process_state_names[3];
 
 typedef struct {
