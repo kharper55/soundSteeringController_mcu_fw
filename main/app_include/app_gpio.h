@@ -58,7 +58,8 @@ typedef enum {
 } device_audio_channels_t;
 
 typedef struct {
-    char * TAG
+    char * TAG;
+    int delay_ms;
 } gpioParams_t;
 
 extern const char * gpio_status_names[2];

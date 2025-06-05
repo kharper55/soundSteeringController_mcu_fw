@@ -78,6 +78,9 @@ extern const char * serial_cmd_names[7];       // Defined in app_uart2.h
 extern const char * device_state_names[2];     // Defined in app_utility.h
 extern const char * connection_state_names[4]; // Defined in app_utility.h
 
+extern RingbufHandle_t i2s_data_buff; // Guaranteed word-aligned in DRAM for DMA 
+extern i2s_chan_handle_t i2s_tx_chan; // TX channel handle, move to app_main in final implementation
+
 /*---------------------------------------------------------------
     ADC Oneshot-Mode Driver Continuous Read Task
     
@@ -680,10 +683,11 @@ static void gpio_task(void * pvParameters) {
 
     gpioParams_t * params = (gpioParams_t *) pvParameters;
     const char * TAG = params->TAG;
+    const int delay_ms = params->delay_ms;
 
     esp_err_t ret = app_gpio_init();
 
-    count = 0; // To retain functionality of old config. Unsure if FPGA will freakout without this.
+    count = 0; // To retain functionality of old config. Unsure if FPGA will freakout without this. Problem for another day
         
     ESP_LOGI(TAG, "GPIO initialization complete.");
 
@@ -709,7 +713,7 @@ static void gpio_task(void * pvParameters) {
         ESP_LOGI(TAG, "AUX: %s", connection_state_names[!gpio_get_level(AUX_SW_PIN)]); // AD4680 SDOA 3.5mm aux switch
         ESP_LOGI(TAG, "ECM: %s", connection_state_names[!gpio_get_level(ECM_SW_PIN)]); // AD4680 SDOA 2.5mm ECM switch
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
 }
 
@@ -734,14 +738,83 @@ static void i2s_task(void * pvParameters) {
 
     i2sParams_t * params = (i2sParams_t *) pvParameters;
     const char * TAG = params->TAG;
+    i2s_chan_handle_t driverHandle = params->handle;
 
-    ESP_ERROR_CHECK(app_i2s_init(TAG));
+    size_t item_size;
+    uint8_t *audio_data;
+    size_t bytes_written = 0;
+    const int delay_ms = params->delay_ms;
+    esp_err_t err = ESP_OK;
+
+    ESP_ERROR_CHECK(app_i2s_init(TAG, &driverHandle));
 
     ESP_LOGI(TAG, "I2S initialization complete.");
 
     while(1) {
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        /*
+        Most peripheral DMA controllers (e.g. SPI, sdmmc, etc.) have requirements 
+        that sending/receiving buffers should be placed in DRAM and word-aligned. 
+        We suggest to place DMA buffers in static variables rather than in the stack.
+        i.e. within scope of any function, declare the vars as static so that 
+        they are not placed on the runtime stack!
+
+        e.g.
+
+        DMA_ATTR _type_ myGlobal // at global scope
+        vs.
+        DMA_ATTR static _type_ myLocal // at local scope
+
+        let IDF tool chain take care of the rest in the build
+        
+        The data transport of the I2S peripheral, including sending and receiving, 
+        is realized by DMA. Before transporting data, please call i2s_channel_enable() 
+        to enable the specific channel. 
+        
+        When the sent or received data reaches the size of one DMA buffer, the I2S_OUT_EOF or I2S_IN_SUC_EOF interrupt will be triggered. 
+        Note that the DMA buffer size is not equal to i2s_chan_config_t::dma_frame_num. 
+        One frame here refers to all the sampled data in one WS circle. Therefore, 
+        dma_buffer_size = dma_frame_num * slot_num * slot_bit_width / 8. 
+        
+        For the data transmitting, users can input the data by calling i2s_channel_write(). This 
+        function helps users to copy the data from the source buffer to the DMA TX buffer 
+        and wait for the transmission to finish. Then it will repeat until the sent bytes 
+        reach the given size. For the data receiving, the function i2s_channel_read() 
+        waits to receive the message queue which contains the DMA buffer address. It 
+        helps users copy the data from the DMA RX buffer to the destination buffer.
+
+        Both i2s_channel_write() and i2s_channel_read() are blocking functions. 
+        They keeps waiting until the whole source buffer is sent or the whole destination 
+        buffer is loaded, unless they exceed the max blocking time, where the error 
+        code ESP_ERR_TIMEOUT returns. To send or receive data asynchronously, callbacks 
+        can be registered by i2s_channel_register_event_callback(). Users are able to 
+        access the DMA buffer directly in the callback function instead of transmitting 
+        or receiving by the two blocking functions. However, please be aware that it is 
+        an interrupt callback, so do not add complex logic, run floating operation, or 
+        call non-reentrant functions in the callback.
+
+        All the public I2S APIs are guaranteed to be thread safe by the driver, which
+        means users can call them from different RTOS tasks without protection by extra 
+        locks. Notice that the I2S driver uses mutex lock to ensure the thread safety, 
+        thus these APIs are not allowed to be used in ISR.
+        
+        */
+
+        audio_data = (uint8_t *)xRingbufferReceive(i2s_data_buff, &item_size, portMAX_DELAY);
+        if (audio_data) {
+            bytes_written = 0;
+
+            err = i2s_channel_write(driverHandle, audio_data, item_size, &bytes_written, portMAX_DELAY);
+
+            if (err != ESP_OK) {
+                ESP_LOGE("I2S", "i2s_channel_write failed: %s", esp_err_to_name(err));
+            }
+
+            vRingbufferReturnItem(i2s_data_buff, audio_data); // do we want to double buffer this shaz
+        }
+        else vTaskDelay(pdMS_TO_TICKS(delay_ms)); // Calling vRingbufferReturnItem() on a NULL pointer (or on memory you didn't get from the ring buffer) is undefined behavior
+
+        //vTaskDelay(pdMS_TO_TICKS(100));
 
     }
 }
@@ -780,6 +853,7 @@ static void wifi_task(void * pvParameters) {
     wifiParams_t * params = (wifiParams_t *) pvParameters;
     const char * TAG = params->TAG;
     wifi_mode_t mode = params->mode;
+    const int delay_ms = params->delay_ms;
 
     esp_err_t ret = ESP_OK;
 
@@ -820,7 +894,7 @@ static void wifi_task(void * pvParameters) {
 
         // AP, STA handlers take care of everything
 
-        vTaskDelay(pdMS_TO_TICKS(100)); // No need to be occupying CPU if doing nothing here
+        vTaskDelay(pdMS_TO_TICKS(delay_ms)); // No need to be occupying CPU if doing nothing here
     }
 
     app_wifi_deinit(); // Should never get here
@@ -847,6 +921,7 @@ static void bt_task(void * pvParameters) {
 
     btParams_t * params = (btParams_t *) pvParameters;
     const char * TAG = params->TAG;
+    const int delay_ms = params->delay_ms;
 
     app_bt_init(TAG);
 
@@ -854,7 +929,7 @@ static void bt_task(void * pvParameters) {
 
     while(1) {
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
 
     }
 }
@@ -913,7 +988,7 @@ void app_main(void) {
         .flag = &artix7_send_flag,
         .flag2 = &ad5272_update_flag,
         //.val = &rdacVal,
-        .delay_ms = 10
+        .delay_ms = DEFAULT_TASK_DELAY_PD_MS
     };
 
     adcParams_t vdriveParams = {
@@ -951,7 +1026,7 @@ void app_main(void) {
         .rx_buff = &spi_rx_data,
         .buff_size = 4,
         .flag = &artix7_send_flag,
-        .delay_ms = 10
+        .delay_ms = DEFAULT_TASK_DELAY_PD_MS
     };
 
     i2cMasterParams_t mi2cParams = {
@@ -960,24 +1035,29 @@ void app_main(void) {
         .ctrl = &digipotCtrl,
         .updateFlag = &ad5272_update_flag,
         //.val = &rdacVal,
-        .delay_ms = 10
+        .delay_ms = DEFAULT_TASK_DELAY_PD_MS
     };
 
     wifiParams_t wifiParams = {
         .TAG = wifi_task_tag,
-        .mode = APP_WIFI_MODE /*WIFI_MODE_APSTA*/
+        .mode = APP_WIFI_MODE, /*WIFI_MODE_APSTA*/
+        .delay_ms = DEFAULT_TASK_DELAY_PD_MS * 10
     };
 
     gpioParams_t gpioParams = { // CURRENTLY UNUSED
-        .TAG = gpio_task_tag
+        .TAG = gpio_task_tag,
+        .delay_ms = DEFAULT_TASK_DELAY_PD_MS * 100
     };
 
     btParams_t btParams = {
-        .TAG = bt_task_tag
+        .TAG = bt_task_tag,
+        .delay_ms = DEFAULT_TASK_DELAY_PD_MS * 10
     };
 
     i2sParams_t i2sParams = {
-        .TAG = i2s_task_tag
+        .TAG = i2s_task_tag,
+        .handle = i2s_tx_chan,
+        .delay_ms = DEFAULT_TASK_DELAY_PD_MS
     };
     
     // ===== Application Task Declarations ===== //

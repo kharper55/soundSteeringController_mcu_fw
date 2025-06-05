@@ -65,6 +65,7 @@ extern "C" {
 // General parameters for the FreeRTOS BT task
 typedef struct {
     char * TAG;
+    int delay_ms;
 } btParams_t;
 
 // User functions

@@ -32,13 +32,18 @@ extern "C" {
 
 // Typedefs
 typedef struct {
-    char * TAG
+    char * TAG;
+    i2s_chan_handle_t handle;
+    int delay_ms;
 } i2sParams_t;
+
+extern i2s_chan_handle_t i2s_tx_chan; // TX channel handle, move to app_main in final implementation
+extern RingbufHandle_t i2s_data_buff;
 
 // Static functions
 
 // User functions
-esp_err_t app_i2s_init(const char * TAG);
+esp_err_t app_i2s_init(const char *TAG, i2s_chan_handle_t * handle);
 
 #ifdef __cplusplus
 }

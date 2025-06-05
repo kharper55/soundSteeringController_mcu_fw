@@ -14,6 +14,7 @@ const char * gap_cb_tag  = "GAP_CB_C0  ";     // PRO_CPU (0)
 const char * adin_cb_tag = "ADIN_CB_C0 ";     // PRO_CPU (0)
 extern const char * process_state_names[3];
 extern const char * connection_state_names[4];
+extern RingbufHandle_t i2s_data_buff;
 
 // Callback for A2DP events
 static void a2dp_sink_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
@@ -31,7 +32,14 @@ static void a2dp_sink_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
 
 // Callback for received audio data
 void audio_data_callback(const uint8_t *data, uint32_t len) {
-    ESP_LOGI(adin_cb_tag, "Received audio data: %" PRIu32 " bytes", len);
+    
+    static int count = 0;
+    static int dropped = 0;
+    static BaseType_t err = pdTRUE;
+
+    count++;
+    if (count % 100 == 0) ESP_LOGI(adin_cb_tag, "Received audio frame %d: %" PRIu32 " bytes", count, len);
+    
     // Process the audio data (e.g., send to I2S, DAC, etc.)
 
     // This callback should write to a queue/buffer
@@ -52,6 +60,11 @@ void audio_data_callback(const uint8_t *data, uint32_t len) {
     // just update the addresses as necessary....
     // Look into DMA_ATTR as a prefix to a type specifier...
 
+    err = xRingbufferSend(i2s_data_buff, data, len, 0);  // 0 tick timeout
+    if (err == pdFALSE) {
+        dropped++;
+        ESP_LOGW(adin_cb_tag, "Ringbuffer full on packet %d. Dropping audio frame #%d.", count, dropped);
+    }
 }
 
 void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
@@ -80,7 +93,6 @@ void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
             
         default:
             ESP_LOGI(gap_cb_tag, "Unhandled event! %d", event);
-        
     }
 }
 

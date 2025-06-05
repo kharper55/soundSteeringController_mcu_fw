@@ -27,6 +27,7 @@ extern "C" {
 #include <string.h>
 #include <ctype.h>
 #include "rom/crc.h"            // For crc32 calculations
+#include "freertos/ringbuf.h"
 
 //#include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -35,6 +36,7 @@ extern "C" {
 
 // Settings
 #define INIT_DELAY_PD_MS 500 // Wait this long in the main task after starting all other tasks
+#define DEFAULT_TASK_DELAY_PD_MS 10
 
 // Macros
 

@@ -12,16 +12,17 @@
 /*---------------------------------------------------------------
     xxxxxxx
 ---------------------------------------------------------------*/
-static i2s_chan_handle_t tx_chan; // TX channel handle, move to app_main in final implementation
+i2s_chan_handle_t i2s_tx_chan; // TX channel handle, move to app_main in final implementation
+RingbufHandle_t i2s_data_buff;
 
-esp_err_t app_i2s_init(const char *TAG) {
+esp_err_t app_i2s_init(const char *TAG, i2s_chan_handle_t * handle) {
     esp_err_t ret;
 
     // Channel configuration: Auto-select port, Master role
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
 
     // Allocate only TX channel
-    ret = i2s_new_channel(&chan_cfg, &tx_chan, NULL);
+    ret = i2s_new_channel(&chan_cfg, handle, NULL);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create I2S TX channel: %s", esp_err_to_name(ret));
         return ret;
@@ -47,22 +48,24 @@ esp_err_t app_i2s_init(const char *TAG) {
     };
 
     // Initialize TX channel in standard mode
-    ret = i2s_channel_init_std_mode(tx_chan, &std_cfg);
+    ret = i2s_channel_init_std_mode(*handle, &std_cfg);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to init I2S STD mode: %s", esp_err_to_name(ret));
         return ret;
     }
 
     // Enable TX channel
-    ret = i2s_channel_enable(tx_chan);
+    ret = i2s_channel_enable(*handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to enable I2S TX channel: %s", esp_err_to_name(ret));
         return ret;
     }
 
     ESP_LOGI(TAG, "I2S initialized with MCLK disabled");
-    
-    return ESP_OK;
+
+    i2s_data_buff = xRingbufferCreate(4096 * 8, RINGBUF_TYPE_NOSPLIT); // 32k of buffer, DROP PACKETS WHEN PRODUCER OVERLOADS US
+
+    return ret;
 }
 
 /*========================================= END FILE ============================================*/

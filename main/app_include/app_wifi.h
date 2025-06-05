@@ -61,6 +61,7 @@ typedef struct {
 typedef struct {
     char * TAG;
     wifi_mode_t mode;
+    int delay_ms;
 } wifiParams_t;
 
 // User functions
