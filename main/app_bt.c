@@ -37,14 +37,14 @@ void audio_data_callback(const uint8_t *data, uint32_t len) {
     static int dropped = 0;
     static BaseType_t err = pdTRUE;
 
-    count++;
+    count++; // Increment every time this callback is invoked
     if (count % 100 == 0) ESP_LOGI(adin_cb_tag, "Received audio frame %d: %" PRIu32 " bytes", count, len);
     
     // Process the audio data (e.g., send to I2S, DAC, etc.)
 
     // This callback should write to a queue/buffer
-    // The i2s task will need to access this buffer serving data in queue order
-    // This may recall a semaphore/other shared resource control means
+    // The i2s task will need to access this buffer serving data in queue order (correction - not using a queue - stale data overwritten)
+    // This may require a semaphore/other shared resource control means
 
     // Lock the semaphore so an access may not occur if a context switch occurs during a write
 
@@ -60,7 +60,7 @@ void audio_data_callback(const uint8_t *data, uint32_t len) {
     // just update the addresses as necessary....
     // Look into DMA_ATTR as a prefix to a type specifier...
 
-    err = xRingbufferSend(i2s_data_buff, data, len, 0);  // 0 tick timeout
+    err = xRingbufferSend(i2s_data_buff, data, len, 0);  // 0 tick timeout; this API function is thread safe! dont worry about resource sharing
     if (err == pdFALSE) {
         dropped++;
         ESP_LOGW(adin_cb_tag, "Ringbuffer full on packet %d. Dropping audio frame #%d.", count, dropped);
